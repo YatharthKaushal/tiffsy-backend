@@ -139,11 +139,10 @@ userSchema.index({ username: 1 }, { unique: true, sparse: true });
 userSchema.index({ firebaseUid: 1 }, { sparse: true });
 
 // Validate kitchenId is set for KITCHEN_STAFF
-userSchema.pre("save", function (next) {
+userSchema.pre("save", async function () {
   if (this.role === "KITCHEN_STAFF" && !this.kitchenId) {
-    return next(new Error("Kitchen ID is required for kitchen staff"));
+    throw new Error("Kitchen ID is required for kitchen staff");
   }
-  next();
 });
 
 // Instance method to check if user can login

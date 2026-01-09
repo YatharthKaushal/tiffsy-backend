@@ -1,0 +1,12 @@
+- modularize the code in a way that code can be reused when needed
+- follow DRY
+- implement proper error handling (also return proper error message and status codes when something fails)
+- consider all the edge cases
+- keep it simple
+- consider developer experience and readability of the code
+- add concise JSDoc style comments (not extensively but when either things are very complicated or when it is necessary)
+- always add JSDoc style comments over api endpoint route and its respective contoller mentioning complete api route along with exact expected req body and res body when success and sample bodies for example
+- follow folder structure strictly
+- console log all the errors (do not use warn or error, just simple `console.log()`; no emojis); console log req and res
+- implement proper validation on expected req body, if fails, return response with appropriate message and error status code
+- always use `@utils/response.utils.js` for return response

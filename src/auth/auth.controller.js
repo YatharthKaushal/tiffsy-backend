@@ -1,0 +1,425 @@
+import jwt from "jsonwebtoken";
+import bcrypt from "bcryptjs";
+import User from "../../schema/user.schema.js";
+import Kitchen from "../../schema/kitchen.schema.js";
+import { sendResponse } from "../utils/response.utils.js";
+
+/**
+ * Auth Controller
+ * Handles authentication for all user types
+ * - Phone OTP via Firebase (all users)
+ * - Username/password for Admin web portal
+ */
+
+/**
+ * Generate JWT token for admin users
+ * @param {Object} user - User document
+ * @returns {Object} Token and expiry info
+ */
+const generateJwtToken = (user) => {
+  const expiresIn = 24 * 60 * 60; // 24 hours in seconds
+  const token = jwt.sign(
+    {
+      userId: user._id,
+      role: user.role,
+      username: user.username,
+    },
+    process.env.JWT_SECRET,
+    { expiresIn: `${expiresIn}s` }
+  );
+  return { token, expiresIn };
+};
+
+/**
+ * Validate password strength
+ * @param {string} password - Password to validate
+ * @returns {Object} Validation result
+ */
+const validatePasswordStrength = (password) => {
+  const errors = [];
+
+  if (password.length < 8) {
+    errors.push("Password must be at least 8 characters");
+  }
+  if (!/[A-Z]/.test(password)) {
+    errors.push("Password must contain at least one uppercase letter");
+  }
+  if (!/[a-z]/.test(password)) {
+    errors.push("Password must contain at least one lowercase letter");
+  }
+  if (!/[0-9]/.test(password)) {
+    errors.push("Password must contain at least one number");
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+  };
+};
+
+/**
+ * Hash password using bcrypt
+ * @param {string} password - Plain text password
+ * @returns {Promise<string>} Hashed password
+ */
+const hashPassword = async (password) => {
+  const salt = await bcrypt.genSalt(10);
+  return bcrypt.hash(password, salt);
+};
+
+/**
+ * Sync user after Firebase OTP authentication
+ * Creates CUSTOMER account if new, returns existing user if found
+ *
+ * POST /api/auth/sync
+ */
+export const syncUser = async (req, res) => {
+  try {
+    const { name, email, dietaryPreferences } = req.body;
+    const phone = req.phone;
+    const firebaseUid = req.firebaseUid;
+
+    // Find existing user
+    let user = await User.findOne({ phone, status: { $ne: "DELETED" } });
+
+    if (user) {
+      // Existing user - update Firebase UID if not set
+      if (!user.firebaseUid && firebaseUid) {
+        user.firebaseUid = firebaseUid;
+      }
+      user.lastLoginAt = new Date();
+      await user.save();
+
+      const isProfileComplete = Boolean(user.name);
+
+      return sendResponse(res, 200, "User authenticated", {
+        user: user.toJSON(),
+        isNewUser: false,
+        isProfileComplete,
+      });
+    }
+
+    // New user - validate name is provided
+    if (!name) {
+      return sendResponse(res, 400, "Name is required for registration");
+    }
+
+    // Create new CUSTOMER user
+    const newUser = new User({
+      phone,
+      role: "CUSTOMER",
+      name: name.trim(),
+      email: email?.trim() || undefined,
+      dietaryPreferences: dietaryPreferences || [],
+      firebaseUid,
+      status: "ACTIVE",
+      lastLoginAt: new Date(),
+    });
+
+    await newUser.save();
+
+    console.log(`> New customer registered: ${phone}`);
+
+    return sendResponse(res, 201, "User registered", {
+      user: newUser.toJSON(),
+      isNewUser: true,
+      isProfileComplete: true,
+    });
+  } catch (error) {
+    console.error("> Auth sync error:", error);
+    return sendResponse(res, 500, "Server error");
+  }
+};
+
+/**
+ * Complete or update user profile
+ *
+ * PUT /api/auth/profile
+ */
+export const completeProfile = async (req, res) => {
+  try {
+    const { name, email, dietaryPreferences, profileImage } = req.body;
+    const user = req.user;
+
+    if (!user) {
+      return sendResponse(res, 401, "User not found");
+    }
+
+    // Update fields
+    user.name = name.trim();
+    if (email !== undefined) user.email = email?.trim() || undefined;
+    if (dietaryPreferences !== undefined) user.dietaryPreferences = dietaryPreferences;
+    if (profileImage !== undefined) user.profileImage = profileImage;
+
+    await user.save();
+
+    return sendResponse(res, 200, "Profile updated", {
+      user: user.toJSON(),
+      isProfileComplete: true,
+    });
+  } catch (error) {
+    console.error("> Profile update error:", error);
+    return sendResponse(res, 500, "Server error");
+  }
+};
+
+/**
+ * Get current authenticated user's profile
+ *
+ * GET /api/auth/me
+ */
+export const getCurrentUser = async (req, res) => {
+  try {
+    const user = req.user;
+
+    if (!user) {
+      return sendResponse(res, 401, "User not found");
+    }
+
+    const response = {
+      user: user.toJSON(),
+    };
+
+    // If KITCHEN_STAFF, include kitchen details
+    if (user.role === "KITCHEN_STAFF" && user.kitchenId) {
+      const kitchen = await Kitchen.findById(user.kitchenId).select(
+        "name code type status"
+      );
+      response.kitchen = kitchen;
+    }
+
+    return sendResponse(res, 200, "User profile", response);
+  } catch (error) {
+    console.error("> Get current user error:", error);
+    return sendResponse(res, 500, "Server error");
+  }
+};
+
+/**
+ * Register/update FCM token for push notifications
+ *
+ * POST /api/auth/fcm-token
+ */
+export const updateFcmToken = async (req, res) => {
+  try {
+    const { fcmToken, deviceId } = req.body;
+    const user = req.user;
+
+    if (!user) {
+      return sendResponse(res, 401, "User not found");
+    }
+
+    // Initialize array if not exists
+    if (!user.fcmTokens) {
+      user.fcmTokens = [];
+    }
+
+    // Remove existing token with same deviceId if provided
+    if (deviceId) {
+      user.fcmTokens = user.fcmTokens.filter((t) => t.deviceId !== deviceId);
+    }
+
+    // Remove duplicate token if exists
+    user.fcmTokens = user.fcmTokens.filter((t) => t.token !== fcmToken);
+
+    // Add new token
+    user.fcmTokens.push({
+      token: fcmToken,
+      deviceId: deviceId || undefined,
+      registeredAt: new Date(),
+    });
+
+    // Limit to max 5 devices
+    if (user.fcmTokens.length > 5) {
+      user.fcmTokens = user.fcmTokens.slice(-5);
+    }
+
+    await user.save();
+
+    return sendResponse(res, 200, "FCM token registered");
+  } catch (error) {
+    console.error("> FCM token update error:", error);
+    return sendResponse(res, 500, "Server error");
+  }
+};
+
+/**
+ * Remove FCM token (logout from device)
+ *
+ * DELETE /api/auth/fcm-token
+ */
+export const removeFcmToken = async (req, res) => {
+  try {
+    const { fcmToken } = req.body;
+    const user = req.user;
+
+    if (!user) {
+      return sendResponse(res, 401, "User not found");
+    }
+
+    if (user.fcmTokens) {
+      user.fcmTokens = user.fcmTokens.filter((t) => t.token !== fcmToken);
+      await user.save();
+    }
+
+    return sendResponse(res, 200, "FCM token removed");
+  } catch (error) {
+    console.error("> FCM token remove error:", error);
+    return sendResponse(res, 500, "Server error");
+  }
+};
+
+/**
+ * Admin login with username and password
+ * Web portal only
+ *
+ * POST /api/auth/admin/login
+ */
+export const adminLogin = async (req, res) => {
+  try {
+    const { username, password } = req.body;
+
+    // Find admin user by username
+    const user = await User.findOne({
+      username: username.toLowerCase().trim(),
+      role: "ADMIN",
+      status: { $ne: "DELETED" },
+    }).select("+passwordHash");
+
+    if (!user) {
+      console.log(`> Failed admin login attempt: ${username}`);
+      return sendResponse(res, 401, "Invalid credentials");
+    }
+
+    // Check if user has password set
+    if (!user.passwordHash) {
+      return sendResponse(res, 401, "Invalid credentials");
+    }
+
+    // Verify password
+    const isMatch = await bcrypt.compare(password, user.passwordHash);
+    if (!isMatch) {
+      console.log(`> Failed admin login: wrong password for ${username}`);
+      return sendResponse(res, 401, "Invalid credentials");
+    }
+
+    // Check user status
+    if (user.status === "INACTIVE" || user.status === "SUSPENDED") {
+      return sendResponse(res, 403, "Account is disabled");
+    }
+
+    // Update last login
+    user.lastLoginAt = new Date();
+    await user.save();
+
+    // Generate JWT token
+    const { token, expiresIn } = generateJwtToken(user);
+
+    console.log(`> Admin logged in: ${username}`);
+
+    return sendResponse(res, 200, "Login successful", {
+      user: {
+        _id: user._id,
+        phone: user.phone,
+        role: user.role,
+        name: user.name,
+        email: user.email,
+        username: user.username,
+      },
+      token,
+      expiresIn,
+    });
+  } catch (error) {
+    console.error("> Admin login error:", error);
+    return sendResponse(res, 500, "Server error");
+  }
+};
+
+/**
+ * Change admin password
+ *
+ * POST /api/auth/admin/change-password
+ */
+export const adminChangePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const user = req.user;
+
+    if (!user) {
+      return sendResponse(res, 401, "User not found");
+    }
+
+    // Get user with password hash
+    const userWithPassword = await User.findById(user._id).select("+passwordHash");
+
+    if (!userWithPassword.passwordHash) {
+      return sendResponse(res, 400, "Password not set for this account");
+    }
+
+    // Verify current password
+    const isMatch = await bcrypt.compare(currentPassword, userWithPassword.passwordHash);
+    if (!isMatch) {
+      return sendResponse(res, 401, "Current password is incorrect");
+    }
+
+    // Validate new password strength
+    const validation = validatePasswordStrength(newPassword);
+    if (!validation.valid) {
+      return sendResponse(res, 400, "Password too weak", null, validation.errors.join(", "));
+    }
+
+    // Hash and save new password
+    userWithPassword.passwordHash = await hashPassword(newPassword);
+    await userWithPassword.save();
+
+    console.log(`> Password changed for admin: ${user.username}`);
+
+    return sendResponse(res, 200, "Password changed successfully");
+  } catch (error) {
+    console.error("> Password change error:", error);
+    return sendResponse(res, 500, "Server error");
+  }
+};
+
+/**
+ * Refresh JWT token for admin web portal
+ *
+ * POST /api/auth/admin/refresh
+ */
+export const adminRefreshToken = async (req, res) => {
+  try {
+    const user = req.user;
+
+    if (!user) {
+      return sendResponse(res, 401, "User not found");
+    }
+
+    // Verify user is still active
+    const currentUser = await User.findById(user._id);
+    if (!currentUser || currentUser.status !== "ACTIVE" || currentUser.role !== "ADMIN") {
+      return sendResponse(res, 401, "User no longer valid");
+    }
+
+    // Generate new token
+    const { token, expiresIn } = generateJwtToken(currentUser);
+
+    return sendResponse(res, 200, "Token refreshed", {
+      token,
+      expiresIn,
+    });
+  } catch (error) {
+    console.error("> Token refresh error:", error);
+    return sendResponse(res, 500, "Server error");
+  }
+};
+
+export default {
+  syncUser,
+  completeProfile,
+  getCurrentUser,
+  updateFcmToken,
+  removeFcmToken,
+  adminLogin,
+  adminChangePassword,
+  adminRefreshToken,
+};

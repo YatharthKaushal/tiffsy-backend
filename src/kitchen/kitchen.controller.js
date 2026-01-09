@@ -4,7 +4,7 @@ import User from "../../schema/user.schema.js";
 import Order from "../../schema/order.schema.js";
 import MenuItem from "../../schema/menuItem.schema.js";
 import AuditLog from "../../schema/auditLog.schema.js";
-import { sendResponse } from "../utils/response.utils.js";
+import { sendResponse } from "../../utils/response.utils.js";
 
 /**
  * Kitchen Controller
@@ -107,7 +107,9 @@ export const createKitchen = async (req, res) => {
         const { hasPartner, kitchen: existingPartner } =
           await checkPartnerKitchenInZone(zoneId);
         if (hasPartner) {
-          const zone = zones.find((z) => z._id.toString() === zoneId.toString());
+          const zone = zones.find(
+            (z) => z._id.toString() === zoneId.toString()
+          );
           return sendResponse(
             res,
             400,
@@ -160,7 +162,7 @@ export const createKitchen = async (req, res) => {
 
     return sendResponse(res, 201, "Kitchen created successfully", { kitchen });
   } catch (error) {
-    console.error("> Create kitchen error:", error);
+    console.log("> Create kitchen error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -213,7 +215,7 @@ export const getKitchens = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("> Get kitchens error:", error);
+    console.log("> Get kitchens error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -274,7 +276,7 @@ export const getKitchenById = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("> Get kitchen by ID error:", error);
+    console.log("> Get kitchen by ID error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -332,7 +334,7 @@ export const updateKitchen = async (req, res) => {
 
     return sendResponse(res, 200, "Kitchen updated successfully", { kitchen });
   } catch (error) {
-    console.error("> Update kitchen error:", error);
+    console.log("> Update kitchen error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -384,7 +386,7 @@ export const updateKitchenType = async (req, res) => {
 
     return sendResponse(res, 200, "Kitchen type updated", { kitchen });
   } catch (error) {
-    console.error("> Update kitchen type error:", error);
+    console.log("> Update kitchen type error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -432,7 +434,7 @@ export const updateKitchenFlags = async (req, res) => {
 
     return sendResponse(res, 200, "Kitchen flags updated", { kitchen });
   } catch (error) {
-    console.error("> Update kitchen flags error:", error);
+    console.log("> Update kitchen flags error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -496,7 +498,7 @@ export const updateZonesServed = async (req, res) => {
 
     return sendResponse(res, 200, "Zones updated", { kitchen });
   } catch (error) {
-    console.error("> Update zones served error:", error);
+    console.log("> Update zones served error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -540,7 +542,7 @@ export const activateKitchen = async (req, res) => {
 
     return sendResponse(res, 200, "Kitchen activated", { kitchen });
   } catch (error) {
-    console.error("> Activate kitchen error:", error);
+    console.log("> Activate kitchen error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -590,7 +592,7 @@ export const deactivateKitchen = async (req, res) => {
           : undefined,
     });
   } catch (error) {
-    console.error("> Deactivate kitchen error:", error);
+    console.log("> Deactivate kitchen error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -633,7 +635,76 @@ export const suspendKitchen = async (req, res) => {
 
     return sendResponse(res, 200, "Kitchen suspended", { kitchen });
   } catch (error) {
-    console.error("> Suspend kitchen error:", error);
+    console.log("> Suspend kitchen error:", error);
+    return sendResponse(res, 500, "Server error");
+  }
+};
+
+/**
+ * Delete kitchen (soft delete) (Admin only)
+ *
+ * DELETE /api/kitchens/:id
+ */
+export const deleteKitchen = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const kitchen = await Kitchen.findById(id);
+    if (!kitchen) {
+      return sendResponse(res, 404, "Kitchen not found");
+    }
+
+    // Check if kitchen is already deleted
+    if (kitchen.status === "DELETED") {
+      return sendResponse(res, 400, "Kitchen is already deleted");
+    }
+
+    // Check for pending orders
+    const pendingOrders = await Order.countDocuments({
+      kitchenId: id,
+      status: { $in: ["PLACED", "CONFIRMED", "PREPARING", "READY_FOR_PICKUP"] },
+    });
+
+    if (pendingOrders > 0) {
+      return sendResponse(
+        res,
+        400,
+        `Cannot delete kitchen with ${pendingOrders} pending order(s). Please complete or cancel all orders first.`
+      );
+    }
+
+    const oldStatus = kitchen.status;
+    kitchen.status = "DELETED";
+    kitchen.isAcceptingOrders = false;
+    await kitchen.save();
+
+    // Deactivate all menu items for this kitchen
+    await MenuItem.updateMany(
+      { kitchenId: id },
+      { status: "INACTIVE", isAvailable: false }
+    );
+
+    // Deactivate all staff associated with this kitchen
+    await User.updateMany(
+      { kitchenId: id, role: "KITCHEN_STAFF" },
+      { status: "INACTIVE" }
+    );
+
+    // Log audit entry
+    await AuditLog.logFromRequest(req, {
+      action: "DELETE",
+      entityType: "Kitchen",
+      entityId: kitchen._id,
+      oldValue: { status: oldStatus },
+      newValue: { status: "DELETED" },
+      description: `Deleted kitchen: ${kitchen.name}`,
+    });
+
+    console.log(`> Kitchen deleted: ${kitchen.name}`);
+
+    return sendResponse(res, 200, "Kitchen deleted successfully", { kitchen });
+  } catch (error) {
+    console.log("> Delete kitchen error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -677,7 +748,7 @@ export const toggleOrderAcceptance = async (req, res) => {
       isAcceptingOrders: kitchen.isAcceptingOrders,
     });
   } catch (error) {
-    console.error("> Toggle order acceptance error:", error);
+    console.log("> Toggle order acceptance error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -732,7 +803,7 @@ export const getKitchensForZone = async (req, res) => {
       partnerKitchens,
     });
   } catch (error) {
-    console.error("> Get kitchens for zone error:", error);
+    console.log("> Get kitchens for zone error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -763,7 +834,7 @@ export const getKitchenPublicDetails = async (req, res) => {
 
     return sendResponse(res, 200, "Kitchen details", { kitchen: kitchenObj });
   } catch (error) {
-    console.error("> Get kitchen public details error:", error);
+    console.log("> Get kitchen public details error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -811,7 +882,7 @@ export const getMyKitchen = async (req, res) => {
       todaysOrders,
     });
   } catch (error) {
-    console.error("> Get my kitchen error:", error);
+    console.log("> Get my kitchen error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -845,7 +916,7 @@ export const updateMyKitchenImages = async (req, res) => {
       coverImage: kitchen.coverImage,
     });
   } catch (error) {
-    console.error("> Update kitchen images error:", error);
+    console.log("> Update kitchen images error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -861,6 +932,7 @@ export default {
   activateKitchen,
   deactivateKitchen,
   suspendKitchen,
+  deleteKitchen,
   toggleOrderAcceptance,
   getKitchensForZone,
   getKitchenPublicDetails,

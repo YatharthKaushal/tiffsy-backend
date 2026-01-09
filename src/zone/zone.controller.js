@@ -3,7 +3,7 @@ import Kitchen from "../../schema/kitchen.schema.js";
 import CustomerAddress from "../../schema/customerAddress.schema.js";
 import Order from "../../schema/order.schema.js";
 import AuditLog from "../../schema/auditLog.schema.js";
-import { sendResponse } from "../utils/response.utils.js";
+import { sendResponse } from "../../utils/response.utils.js";
 
 /**
  * Zone Controller
@@ -62,7 +62,7 @@ export const createZone = async (req, res) => {
 
     return sendResponse(res, 201, "Zone created successfully", { zone });
   } catch (error) {
-    console.error("> Create zone error:", error);
+    console.log("> Create zone error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -125,7 +125,7 @@ export const getZones = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("> Get zones error:", error);
+    console.log("> Get zones error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -155,7 +155,7 @@ export const getZoneById = async (req, res) => {
       kitchens,
     });
   } catch (error) {
-    console.error("> Get zone by ID error:", error);
+    console.log("> Get zone by ID error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -200,7 +200,7 @@ export const updateZone = async (req, res) => {
 
     return sendResponse(res, 200, "Zone updated successfully", { zone });
   } catch (error) {
-    console.error("> Update zone error:", error);
+    console.log("> Update zone error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -244,7 +244,7 @@ export const activateZone = async (req, res) => {
       warning: kitchenCount === 0 ? "No active kitchens serve this zone" : undefined,
     });
   } catch (error) {
-    console.error("> Activate zone error:", error);
+    console.log("> Activate zone error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -288,7 +288,7 @@ export const deactivateZone = async (req, res) => {
       warning: pendingOrders > 0 ? `${pendingOrders} pending orders in this zone` : undefined,
     });
   } catch (error) {
-    console.error("> Deactivate zone error:", error);
+    console.log("> Deactivate zone error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -326,7 +326,7 @@ export const toggleOrdering = async (req, res) => {
       orderingEnabled: zone.orderingEnabled,
     });
   } catch (error) {
-    console.error("> Toggle ordering error:", error);
+    console.log("> Toggle ordering error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -377,7 +377,7 @@ export const deleteZone = async (req, res) => {
 
     return sendResponse(res, 200, "Zone deleted successfully");
   } catch (error) {
-    console.error("> Delete zone error:", error);
+    console.log("> Delete zone error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -421,7 +421,7 @@ export const getCities = async (req, res) => {
 
     return sendResponse(res, 200, "Cities retrieved", { cities });
   } catch (error) {
-    console.error("> Get cities error:", error);
+    console.log("> Get cities error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -450,7 +450,7 @@ export const getZonesByCity = async (req, res) => {
       zones,
     });
   } catch (error) {
-    console.error("> Get zones by city error:", error);
+    console.log("> Get zones by city error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -479,7 +479,7 @@ export const getActiveZones = async (req, res) => {
 
     return sendResponse(res, 200, "Active zones retrieved", { zones });
   } catch (error) {
-    console.error("> Get active zones error:", error);
+    console.log("> Get active zones error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -528,7 +528,7 @@ export const lookupZoneByPincode = async (req, res) => {
         : "Service temporarily unavailable in this area",
     });
   } catch (error) {
-    console.error("> Lookup zone error:", error);
+    console.log("> Lookup zone error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };

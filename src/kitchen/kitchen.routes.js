@@ -207,7 +207,7 @@ router.patch(
   kitchenController.toggleOrderAcceptance
 );
 
-// Delete kitchen
+// Delete kitchen (soft delete)
 router.delete(
   "/:id",
   authMiddleware,

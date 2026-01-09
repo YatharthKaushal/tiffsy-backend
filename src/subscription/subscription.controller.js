@@ -2,7 +2,7 @@ import SubscriptionPlan from "../../schema/subscriptionPlan.schema.js";
 import Subscription from "../../schema/subscription.schema.js";
 import Voucher from "../../schema/voucher.schema.js";
 import AuditLog from "../../schema/auditLog.schema.js";
-import { sendResponse } from "../utils/response.utils.js";
+import { sendResponse } from "../../utils/response.utils.js";
 
 /**
  * Subscription Controller
@@ -46,24 +46,33 @@ const calculateRefundEligibility = async (subscription) => {
   // Get voucher usage
   const vouchers = await Voucher.find({ subscriptionId: subscription._id });
   const totalVouchers = vouchers.length;
-  const redeemedVouchers = vouchers.filter((v) => v.status === "REDEEMED").length;
-  const usagePercentage = totalVouchers > 0 ? (redeemedVouchers / totalVouchers) * 100 : 0;
+  const redeemedVouchers = vouchers.filter(
+    (v) => v.status === "REDEEMED"
+  ).length;
+  const usagePercentage =
+    totalVouchers > 0 ? (redeemedVouchers / totalVouchers) * 100 : 0;
 
   // Refund policy: eligible if less than 25% used
   if (usagePercentage <= 25) {
-    const refundPercentage = 100 - (usagePercentage * 2); // Progressive reduction
-    const amount = Math.round((subscription.amountPaid * refundPercentage) / 100);
+    const refundPercentage = 100 - usagePercentage * 2; // Progressive reduction
+    const amount = Math.round(
+      (subscription.amountPaid * refundPercentage) / 100
+    );
     return {
       eligible: true,
       amount,
-      reason: `${redeemedVouchers}/${totalVouchers} vouchers used (${usagePercentage.toFixed(1)}%)`,
+      reason: `${redeemedVouchers}/${totalVouchers} vouchers used (${usagePercentage.toFixed(
+        1
+      )}%)`,
     };
   }
 
   return {
     eligible: false,
     amount: 0,
-    reason: `Too many vouchers used: ${redeemedVouchers}/${totalVouchers} (${usagePercentage.toFixed(1)}%)`,
+    reason: `Too many vouchers used: ${redeemedVouchers}/${totalVouchers} (${usagePercentage.toFixed(
+      1
+    )}%)`,
   };
 };
 
@@ -154,7 +163,7 @@ export const createPlan = async (req, res) => {
       totalVouchers,
     });
   } catch (error) {
-    console.error("> Create plan error:", error);
+    console.log("> Create plan error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -203,7 +212,7 @@ export const getPlans = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("> Get plans error:", error);
+    console.log("> Get plans error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -229,7 +238,7 @@ export const getPlanById = async (req, res) => {
 
     return sendResponse(res, 200, "Plan details", { plan });
   } catch (error) {
-    console.error("> Get plan by ID error:", error);
+    console.log("> Get plan by ID error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -301,7 +310,7 @@ export const updatePlan = async (req, res) => {
           : undefined,
     });
   } catch (error) {
-    console.error("> Update plan error:", error);
+    console.log("> Update plan error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -336,7 +345,7 @@ export const activatePlan = async (req, res) => {
 
     return sendResponse(res, 200, "Plan activated", { plan });
   } catch (error) {
-    console.error("> Activate plan error:", error);
+    console.log("> Activate plan error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -371,7 +380,7 @@ export const deactivatePlan = async (req, res) => {
 
     return sendResponse(res, 200, "Plan deactivated", { plan });
   } catch (error) {
-    console.error("> Deactivate plan error:", error);
+    console.log("> Deactivate plan error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -406,7 +415,7 @@ export const archivePlan = async (req, res) => {
 
     return sendResponse(res, 200, "Plan archived", { plan });
   } catch (error) {
-    console.error("> Archive plan error:", error);
+    console.log("> Archive plan error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -458,7 +467,7 @@ export const getActivePlans = async (req, res) => {
       plans: filteredPlans,
     });
   } catch (error) {
-    console.error("> Get active plans error:", error);
+    console.log("> Get active plans error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -515,8 +524,10 @@ export const purchaseSubscription = async (req, res) => {
             _id: existingSubscription._id,
             startDate: existingSubscription.startDate,
             endDate: existingSubscription.endDate,
-            vouchersRemaining: existingSubscription.totalVouchersIssued - existingSubscription.vouchersUsed,
-          }
+            vouchersRemaining:
+              existingSubscription.totalVouchersIssued -
+              existingSubscription.vouchersUsed,
+          },
         }
       );
     }
@@ -573,7 +584,7 @@ export const purchaseSubscription = async (req, res) => {
       voucherExpiryDate,
     });
   } catch (error) {
-    console.error("> Purchase subscription error:", error);
+    console.log("> Purchase subscription error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -656,7 +667,7 @@ export const getMySubscriptions = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("> Get my subscriptions error:", error);
+    console.log("> Get my subscriptions error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -714,7 +725,7 @@ export const getSubscriptionById = async (req, res) => {
       vouchers,
     });
   } catch (error) {
-    console.error("> Get subscription by ID error:", error);
+    console.log("> Get subscription by ID error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -773,7 +784,7 @@ export const cancelSubscription = async (req, res) => {
       refundReason: refundResult.reason,
     });
   } catch (error) {
-    console.error("> Cancel subscription error:", error);
+    console.log("> Cancel subscription error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -789,7 +800,15 @@ export const cancelSubscription = async (req, res) => {
  */
 export const getAllSubscriptions = async (req, res) => {
   try {
-    const { userId, planId, status, dateFrom, dateTo, page = 1, limit = 20 } = req.query;
+    const {
+      userId,
+      planId,
+      status,
+      dateFrom,
+      dateTo,
+      page = 1,
+      limit = 20,
+    } = req.query;
 
     const query = {};
     if (userId) query.userId = userId;
@@ -823,7 +842,7 @@ export const getAllSubscriptions = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("> Get all subscriptions error:", error);
+    console.log("> Get all subscriptions error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -884,7 +903,7 @@ export const adminCancelSubscription = async (req, res) => {
       refundAmount: issueRefund ? refundAmount || subscription.amountPaid : 0,
     });
   } catch (error) {
-    console.error("> Admin cancel subscription error:", error);
+    console.log("> Admin cancel subscription error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };

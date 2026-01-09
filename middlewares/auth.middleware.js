@@ -2,7 +2,7 @@ import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import { firebaseAdmin } from "../config/firebase.config.js";
 import { sendResponse } from "../utils/response.utils.js";
-import User from "../src/schemas/user.schema.js";
+import User from "../schema/user.schema.js";
 import { normalizePhone } from "../utils/phone.utils.js";
 
 /**

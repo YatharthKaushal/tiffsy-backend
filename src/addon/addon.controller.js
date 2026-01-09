@@ -1,7 +1,7 @@
 import Addon from "../../schema/addon.schema.js";
 import MenuItem from "../../schema/menuItem.schema.js";
 import Kitchen from "../../schema/kitchen.schema.js";
-import { sendResponse } from "../utils/response.utils.js";
+import { sendResponse } from "../../utils/response.utils.js";
 
 /**
  * Addon Controller
@@ -93,7 +93,7 @@ export const createAddon = async (req, res) => {
 
     return sendResponse(res, 201, "Add-on created successfully", { addon });
   } catch (error) {
-    console.error("> Create addon error:", error);
+    console.log("> Create addon error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -167,7 +167,7 @@ export const getAddons = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("> Get addons error:", error);
+    console.log("> Get addons error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -205,7 +205,7 @@ export const getAddonById = async (req, res) => {
       usedInMenuItems,
     });
   } catch (error) {
-    console.error("> Get addon by ID error:", error);
+    console.log("> Get addon by ID error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -272,7 +272,7 @@ export const updateAddon = async (req, res) => {
 
     return sendResponse(res, 200, "Add-on updated", { addon });
   } catch (error) {
-    console.error("> Update addon error:", error);
+    console.log("> Update addon error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -307,7 +307,7 @@ export const toggleAvailability = async (req, res) => {
       isAvailable: addon.isAvailable,
     });
   } catch (error) {
-    console.error("> Toggle addon availability error:", error);
+    console.log("> Toggle addon availability error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -346,7 +346,7 @@ export const deleteAddon = async (req, res) => {
 
     return sendResponse(res, 200, "Add-on deleted");
   } catch (error) {
-    console.error("> Delete addon error:", error);
+    console.log("> Delete addon error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -401,7 +401,7 @@ export const getAddonsForMenuItem = async (req, res) => {
       available,
     });
   } catch (error) {
-    console.error("> Get addons for menu item error:", error);
+    console.log("> Get addons for menu item error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -446,7 +446,7 @@ export const getKitchenAddonLibrary = async (req, res) => {
       activeCount,
     });
   } catch (error) {
-    console.error("> Get kitchen addon library error:", error);
+    console.log("> Get kitchen addon library error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -484,7 +484,7 @@ export const getAddonsForCustomer = async (req, res) => {
 
     return sendResponse(res, 200, "Add-ons for menu item", { addons });
   } catch (error) {
-    console.error("> Get addons for customer error:", error);
+    console.log("> Get addons for customer error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };

@@ -5,7 +5,7 @@ import Kitchen from "../../schema/kitchen.schema.js";
 import MenuItem from "../../schema/menuItem.schema.js";
 import Voucher from "../../schema/voucher.schema.js";
 import Zone from "../../schema/zone.schema.js";
-import { sendResponse } from "../utils/response.utils.js";
+import { sendResponse } from "../../utils/response.utils.js";
 import { checkCutoffTime, getCurrentMealWindow } from "../../services/config.service.js";
 import { getAvailableVoucherCount } from "../../services/voucher.service.js";
 
@@ -53,7 +53,7 @@ export const checkProfileCompleteness = async (req, res) => {
       profile: status.isComplete ? user.toJSON() : undefined,
     });
   } catch (error) {
-    console.error("> Check profile completeness error:", error);
+    console.log("> Check profile completeness error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -83,7 +83,7 @@ export const completeProfile = async (req, res) => {
       user: user.toJSON(),
     });
   } catch (error) {
-    console.error("> Complete profile error:", error);
+    console.log("> Complete profile error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -105,7 +105,7 @@ export const getProfile = async (req, res) => {
       user: user.toJSON(),
     });
   } catch (error) {
-    console.error("> Get profile error:", error);
+    console.log("> Get profile error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -136,7 +136,7 @@ export const updateProfile = async (req, res) => {
       user: user.toJSON(),
     });
   } catch (error) {
-    console.error("> Update profile error:", error);
+    console.log("> Update profile error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -162,7 +162,7 @@ export const updateDietaryPreferences = async (req, res) => {
       dietaryPreferences: user.dietaryPreferences,
     });
   } catch (error) {
-    console.error("> Update dietary preferences error:", error);
+    console.log("> Update dietary preferences error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -188,7 +188,7 @@ export const updateProfileImage = async (req, res) => {
       profileImage: user.profileImage,
     });
   } catch (error) {
-    console.error("> Update profile image error:", error);
+    console.log("> Update profile image error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -251,7 +251,7 @@ export const deleteAccount = async (req, res) => {
 
     return sendResponse(res, 200, "Account scheduled for deletion");
   } catch (error) {
-    console.error("> Delete account error:", error);
+    console.log("> Delete account error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -500,7 +500,7 @@ export const getHomeFeed = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("> Get home feed error:", error);
+    console.log("> Get home feed error:", error);
     return sendResponse(res, 500, false, "Failed to load home feed");
   }
 };
@@ -638,7 +638,7 @@ export const getMealMenu = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("> Get meal menu error:", error);
+    console.log("> Get meal menu error:", error);
     return sendResponse(res, 500, false, "Failed to load meal menu");
   }
 };
@@ -702,7 +702,7 @@ export const checkServiceability = async (req, res) => {
       message: "We deliver to this location!",
     });
   } catch (error) {
-    console.error("> Check serviceability error:", error);
+    console.log("> Check serviceability error:", error);
     return sendResponse(res, 500, false, "Failed to check serviceability");
   }
 };

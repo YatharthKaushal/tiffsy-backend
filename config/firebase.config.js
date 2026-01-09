@@ -27,21 +27,21 @@ const missingAdminVars = requiredAdminEnvVars.filter(
 );
 
 if (missingVars.length > 0) {
-  console.error(
+  console.log(
     "> Missing required Firebase environment variables:",
     missingVars.join(", ")
   );
-  console.error(
+  console.log(
     "> Please check your .env file and ensure all variables are set."
   );
 }
 
 if (missingAdminVars.length > 0) {
-  console.error(
+  console.log(
     "> Missing required Firebase Admin SDK environment variables:",
     missingAdminVars.join(", ")
   );
-  console.error(
+  console.log(
     "> Please check your .env file and ensure all admin variables are set."
   );
 }

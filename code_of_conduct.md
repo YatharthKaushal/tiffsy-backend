@@ -10,3 +10,4 @@
 - console log all the errors (do not use warn or error, just simple `console.log()`; no emojis); console log req and res
 - implement proper validation on expected req body, if fails, return response with appropriate message and error status code
 - always use `@utils/response.utils.js` for return response
+- whenever resolving bugs, always implement parmanent fixes instead of temporary or quick fixes.

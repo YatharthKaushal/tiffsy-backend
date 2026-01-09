@@ -2,7 +2,7 @@ import MenuItem from "../../schema/menuItem.schema.js";
 import Addon from "../../schema/addon.schema.js";
 import Kitchen from "../../schema/kitchen.schema.js";
 import AuditLog from "../../schema/auditLog.schema.js";
-import { sendResponse } from "../utils/response.utils.js";
+import { sendResponse } from "../../utils/response.utils.js";
 
 /**
  * Menu Controller
@@ -208,7 +208,7 @@ export const createMenuItem = async (req, res) => {
       menuItem,
     });
   } catch (error) {
-    console.error("> Create menu item error:", error);
+    console.log("> Create menu item error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -304,7 +304,7 @@ export const getMenuItems = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("> Get menu items error:", error);
+    console.log("> Get menu items error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -339,7 +339,7 @@ export const getMenuItemById = async (req, res) => {
       kitchen: menuItem.kitchenId,
     });
   } catch (error) {
-    console.error("> Get menu item by ID error:", error);
+    console.log("> Get menu item by ID error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -412,7 +412,7 @@ export const updateMenuItem = async (req, res) => {
 
     return sendResponse(res, 200, "Menu item updated", { menuItem });
   } catch (error) {
-    console.error("> Update menu item error:", error);
+    console.log("> Update menu item error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -447,7 +447,7 @@ export const toggleAvailability = async (req, res) => {
       isAvailable: menuItem.isAvailable,
     });
   } catch (error) {
-    console.error("> Toggle availability error:", error);
+    console.log("> Toggle availability error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -496,7 +496,7 @@ export const updateAddons = async (req, res) => {
       addons,
     });
   } catch (error) {
-    console.error("> Update addons error:", error);
+    console.log("> Update addons error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -528,7 +528,7 @@ export const deleteMenuItem = async (req, res) => {
 
     return sendResponse(res, 200, "Menu item deleted");
   } catch (error) {
-    console.error("> Delete menu item error:", error);
+    console.log("> Delete menu item error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -568,7 +568,7 @@ export const disableMenuItem = async (req, res) => {
 
     return sendResponse(res, 200, "Menu item disabled", { menuItem });
   } catch (error) {
-    console.error("> Disable menu item error:", error);
+    console.log("> Disable menu item error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -607,7 +607,7 @@ export const enableMenuItem = async (req, res) => {
 
     return sendResponse(res, 200, "Menu item enabled", { menuItem });
   } catch (error) {
-    console.error("> Enable menu item error:", error);
+    console.log("> Enable menu item error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -677,7 +677,7 @@ export const getKitchenMenu = async (req, res) => {
       isCouponEligible: true, // On-demand menu items are coupon-eligible
     });
   } catch (error) {
-    console.error("> Get kitchen menu error:", error);
+    console.log("> Get kitchen menu error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -725,7 +725,7 @@ export const getMealMenuForWindow = async (req, res) => {
       isPastCutoff,
     });
   } catch (error) {
-    console.error("> Get meal menu for window error:", error);
+    console.log("> Get meal menu for window error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };

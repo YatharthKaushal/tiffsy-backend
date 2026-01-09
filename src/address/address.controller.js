@@ -2,7 +2,7 @@ import CustomerAddress from "../../schema/customerAddress.schema.js";
 import Zone from "../../schema/zone.schema.js";
 import Kitchen from "../../schema/kitchen.schema.js";
 import Order from "../../schema/order.schema.js";
-import { sendResponse } from "../utils/response.utils.js";
+import { sendResponse } from "../../utils/response.utils.js";
 
 /**
  * Address Controller
@@ -102,7 +102,7 @@ export const createAddress = async (req, res) => {
       zone: serviceability.zone,
     });
   } catch (error) {
-    console.error("> Create address error:", error);
+    console.log("> Create address error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -133,7 +133,7 @@ export const getAddresses = async (req, res) => {
       defaultAddressId: defaultAddress?._id || null,
     });
   } catch (error) {
-    console.error("> Get addresses error:", error);
+    console.log("> Get addresses error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -179,7 +179,7 @@ export const getAddressById = async (req, res) => {
       availableKitchens,
     });
   } catch (error) {
-    console.error("> Get address by ID error:", error);
+    console.log("> Get address by ID error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -256,7 +256,7 @@ export const updateAddress = async (req, res) => {
       zone,
     });
   } catch (error) {
-    console.error("> Update address error:", error);
+    console.log("> Update address error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -320,7 +320,7 @@ export const deleteAddress = async (req, res) => {
 
     return sendResponse(res, 200, "Address deleted successfully");
   } catch (error) {
-    console.error("> Delete address error:", error);
+    console.log("> Delete address error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -359,7 +359,7 @@ export const setDefaultAddress = async (req, res) => {
       defaultAddressId: address._id,
     });
   } catch (error) {
-    console.error("> Set default address error:", error);
+    console.log("> Set default address error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -399,7 +399,7 @@ export const checkServiceability = async (req, res) => {
         : "Sorry, we don't deliver to this area yet",
     });
   } catch (error) {
-    console.error("> Check serviceability error:", error);
+    console.log("> Check serviceability error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -449,7 +449,7 @@ export const getServiceableKitchens = async (req, res) => {
       count: kitchens.length,
     });
   } catch (error) {
-    console.error("> Get serviceable kitchens error:", error);
+    console.log("> Get serviceable kitchens error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };

@@ -1,4 +1,4 @@
-import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs";
 import User from "../../schema/user.schema.js";
 import Kitchen from "../../schema/kitchen.schema.js";
 import Zone from "../../schema/zone.schema.js";
@@ -7,7 +7,7 @@ import Refund from "../../schema/refund.schema.js";
 import Voucher from "../../schema/voucher.schema.js";
 import AuditLog from "../../schema/auditLog.schema.js";
 import SystemConfig from "../../schema/systemConfig.schema.js";
-import { sendResponse } from "../utils/response.utils.js";
+import { sendResponse } from "../../utils/response.utils.js";
 import { normalizePhone } from "../../utils/phone.utils.js";
 import {
   getConfig,
@@ -125,7 +125,7 @@ export async function createUser(req, res) {
 
     return sendResponse(res, 201, true, "User created successfully", { user: userResponse });
   } catch (error) {
-    console.error("Create user error:", error);
+    console.log("Create user error:", error);
     return sendResponse(res, 500, false, "Failed to create user");
   }
 }
@@ -193,7 +193,7 @@ export async function getUsers(req, res) {
       },
     });
   } catch (error) {
-    console.error("Get users error:", error);
+    console.log("Get users error:", error);
     return sendResponse(res, 500, false, "Failed to retrieve users");
   }
 }
@@ -242,7 +242,7 @@ export async function getUserById(req, res) {
       activity,
     });
   } catch (error) {
-    console.error("Get user by ID error:", error);
+    console.log("Get user by ID error:", error);
     return sendResponse(res, 500, false, "Failed to retrieve user");
   }
 }
@@ -289,7 +289,7 @@ export async function updateUser(req, res) {
 
     return sendResponse(res, 200, true, "User updated successfully", { user: userResponse });
   } catch (error) {
-    console.error("Update user error:", error);
+    console.log("Update user error:", error);
     return sendResponse(res, 500, false, "Failed to update user");
   }
 }
@@ -326,7 +326,7 @@ export async function activateUser(req, res) {
 
     return sendResponse(res, 200, true, "User activated", { user });
   } catch (error) {
-    console.error("Activate user error:", error);
+    console.log("Activate user error:", error);
     return sendResponse(res, 500, false, "Failed to activate user");
   }
 }
@@ -363,7 +363,7 @@ export async function deactivateUser(req, res) {
 
     return sendResponse(res, 200, true, "User deactivated", { user });
   } catch (error) {
-    console.error("Deactivate user error:", error);
+    console.log("Deactivate user error:", error);
     return sendResponse(res, 500, false, "Failed to deactivate user");
   }
 }
@@ -400,7 +400,7 @@ export async function suspendUser(req, res) {
 
     return sendResponse(res, 200, true, "User suspended", { user });
   } catch (error) {
-    console.error("Suspend user error:", error);
+    console.log("Suspend user error:", error);
     return sendResponse(res, 500, false, "Failed to suspend user");
   }
 }
@@ -444,7 +444,7 @@ export async function deleteUser(req, res) {
 
     return sendResponse(res, 200, true, "User deleted");
   } catch (error) {
-    console.error("Delete user error:", error);
+    console.log("Delete user error:", error);
     return sendResponse(res, 500, false, "Failed to delete user");
   }
 }
@@ -482,7 +482,7 @@ export async function resetUserPassword(req, res) {
 
     return sendResponse(res, 200, true, "Password reset successfully");
   } catch (error) {
-    console.error("Reset password error:", error);
+    console.log("Reset password error:", error);
     return sendResponse(res, 500, false, "Failed to reset password");
   }
 }
@@ -535,7 +535,7 @@ export async function getAuditLogs(req, res) {
       },
     });
   } catch (error) {
-    console.error("Get audit logs error:", error);
+    console.log("Get audit logs error:", error);
     return sendResponse(res, 500, false, "Failed to retrieve audit logs");
   }
 }
@@ -557,7 +557,7 @@ export async function getAuditLogById(req, res) {
 
     return sendResponse(res, 200, true, "Audit log retrieved", { log });
   } catch (error) {
-    console.error("Get audit log by ID error:", error);
+    console.log("Get audit log by ID error:", error);
     return sendResponse(res, 500, false, "Failed to retrieve audit log");
   }
 }
@@ -591,7 +591,7 @@ export async function getSystemConfig(req, res) {
 
     return sendResponse(res, 200, true, "System configuration", { config });
   } catch (error) {
-    console.error("Get system config error:", error);
+    console.log("Get system config error:", error);
     return sendResponse(res, 500, false, "Failed to retrieve configuration");
   }
 }
@@ -661,7 +661,7 @@ export async function updateSystemConfig(req, res) {
 
     return sendResponse(res, 200, true, "Configuration updated", { config });
   } catch (error) {
-    console.error("Update config error:", error);
+    console.log("Update config error:", error);
     return sendResponse(res, 500, false, "Failed to update configuration");
   }
 }
@@ -738,7 +738,7 @@ export async function getDashboard(req, res) {
       recentActivity,
     });
   } catch (error) {
-    console.error("Get dashboard error:", error);
+    console.log("Get dashboard error:", error);
     return sendResponse(res, 500, false, "Failed to retrieve dashboard");
   }
 }
@@ -782,7 +782,7 @@ export async function getReports(req, res) {
 
     return sendResponse(res, 200, true, "Report generated", { report });
   } catch (error) {
-    console.error("Get reports error:", error);
+    console.log("Get reports error:", error);
     return sendResponse(res, 500, false, "Failed to generate report");
   }
 }
@@ -906,7 +906,7 @@ export async function exportReport(req, res) {
       note: "Full CSV/Excel export pending implementation",
     });
   } catch (error) {
-    console.error("Export report error:", error);
+    console.log("Export report error:", error);
     return sendResponse(res, 500, false, "Failed to export report");
   }
 }
@@ -955,7 +955,7 @@ export async function updateGuidelines(req, res) {
       guidelines: GUIDELINES,
     });
   } catch (error) {
-    console.error("Update guidelines error:", error);
+    console.log("Update guidelines error:", error);
     return sendResponse(res, 500, false, "Failed to update guidelines");
   }
 }

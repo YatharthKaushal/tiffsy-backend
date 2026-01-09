@@ -1,4 +1,5 @@
 import Joi from "joi";
+import { normalizePhone, isValidPhone } from "../../utils/phone.utils.js";
 
 /**
  * Admin Validation Schemas
@@ -14,8 +15,14 @@ const SEGMENT_BY = ["CITY", "ZONE", "KITCHEN"];
  */
 export const createUserSchema = Joi.object({
   phone: Joi.string()
-    .pattern(/^[6-9]\d{9}$/)
     .required()
+    .custom((value, helpers) => {
+      const normalized = normalizePhone(value);
+      if (!normalized || !isValidPhone(normalized)) {
+        return helpers.error("string.pattern.base");
+      }
+      return normalized;
+    })
     .messages({
       "any.required": "Phone number is required",
       "string.pattern.base": "Phone must be a valid 10-digit Indian mobile number",

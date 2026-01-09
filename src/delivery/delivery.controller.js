@@ -4,7 +4,7 @@ import Order from "../../schema/order.schema.js";
 import Kitchen from "../../schema/kitchen.schema.js";
 import Zone from "../../schema/zone.schema.js";
 import AuditLog from "../../schema/auditLog.schema.js";
-import { sendResponse } from "../utils/response.utils.js";
+import { sendResponse } from "../../utils/response.utils.js";
 
 /**
  * ============================================================================
@@ -293,7 +293,7 @@ export async function autoBatchOrders(req, res) {
       batches: batchSummaries,
     });
   } catch (error) {
-    console.error("Auto-batch orders error:", error);
+    console.log("Auto-batch orders error:", error);
     return sendResponse(res, 500, false, "Failed to auto-batch orders");
   }
 }
@@ -355,7 +355,7 @@ export async function dispatchBatches(req, res) {
       batches: dispatchedBatches,
     });
   } catch (error) {
-    console.error("Dispatch batches error:", error);
+    console.log("Dispatch batches error:", error);
     return sendResponse(res, 500, false, "Failed to dispatch batches");
   }
 }
@@ -394,8 +394,13 @@ export async function getAvailableBatches(req, res) {
       batches: batchList,
     });
   } catch (error) {
-    console.error("Get available batches error:", error);
-    return sendResponse(res, 500, false, "Failed to retrieve available batches");
+    console.log("Get available batches error:", error);
+    return sendResponse(
+      res,
+      500,
+      false,
+      "Failed to retrieve available batches"
+    );
   }
 }
 
@@ -413,7 +418,12 @@ export async function acceptBatch(req, res) {
     const result = await assignDriverToBatch(batchId, driverId);
 
     if (!result.success) {
-      return sendResponse(res, 400, false, "Batch already taken or not available");
+      return sendResponse(
+        res,
+        400,
+        false,
+        "Batch already taken or not available"
+      );
     }
 
     const batch = result.batch;
@@ -428,12 +438,14 @@ export async function acceptBatch(req, res) {
     await createDeliveryAssignments(batch._id, batch.orderIds, driverId);
 
     // Get order details
-    const orders = await Order.find({ _id: { $in: batch.orderIds } })
-      .select("orderNumber deliveryAddress items status");
+    const orders = await Order.find({ _id: { $in: batch.orderIds } }).select(
+      "orderNumber deliveryAddress items status"
+    );
 
     // Get kitchen address
-    const kitchen = await Kitchen.findById(batch.kitchenId)
-      .select("name address");
+    const kitchen = await Kitchen.findById(batch.kitchenId).select(
+      "name address"
+    );
 
     return sendResponse(res, 200, true, "Batch accepted", {
       batch,
@@ -446,7 +458,7 @@ export async function acceptBatch(req, res) {
       })),
     });
   } catch (error) {
-    console.error("Accept batch error:", error);
+    console.log("Accept batch error:", error);
     return sendResponse(res, 500, false, "Failed to accept batch");
   }
 }
@@ -508,7 +520,7 @@ export async function getMyBatch(req, res) {
       summary,
     });
   } catch (error) {
-    console.error("Get my batch error:", error);
+    console.log("Get my batch error:", error);
     return sendResponse(res, 500, false, "Failed to retrieve batch");
   }
 }
@@ -533,7 +545,12 @@ export async function updateBatchPickup(req, res) {
     }
 
     if (batch.status !== "DISPATCHED") {
-      return sendResponse(res, 400, false, "Batch must be in DISPATCHED status");
+      return sendResponse(
+        res,
+        400,
+        false,
+        "Batch must be in DISPATCHED status"
+      );
     }
 
     // Update batch
@@ -565,7 +582,7 @@ export async function updateBatchPickup(req, res) {
 
     return sendResponse(res, 200, true, "Batch picked up", { batch });
   } catch (error) {
-    console.error("Update batch pickup error:", error);
+    console.log("Update batch pickup error:", error);
     return sendResponse(res, 500, false, "Failed to update batch pickup");
   }
 }
@@ -619,7 +636,10 @@ export async function updateDeliveryStatus(req, res) {
 
       order.proofOfDelivery = {
         type: proofOfDelivery?.type,
-        value: proofOfDelivery?.otp || proofOfDelivery?.signatureUrl || proofOfDelivery?.photoUrl,
+        value:
+          proofOfDelivery?.otp ||
+          proofOfDelivery?.signatureUrl ||
+          proofOfDelivery?.photoUrl,
         verifiedAt: new Date(),
       };
     }
@@ -651,7 +671,7 @@ export async function updateDeliveryStatus(req, res) {
       batchProgress,
     });
   } catch (error) {
-    console.error("Update delivery status error:", error);
+    console.log("Update delivery status error:", error);
     return sendResponse(res, 500, false, "Failed to update delivery status");
   }
 }
@@ -698,7 +718,7 @@ export async function completeBatch(req, res) {
       },
     });
   } catch (error) {
-    console.error("Complete batch error:", error);
+    console.log("Complete batch error:", error);
     return sendResponse(res, 500, false, "Failed to complete batch");
   }
 }
@@ -744,7 +764,7 @@ export async function updateDeliverySequence(req, res) {
 
     return sendResponse(res, 200, true, "Delivery sequence updated", { batch });
   } catch (error) {
-    console.error("Update delivery sequence error:", error);
+    console.log("Update delivery sequence error:", error);
     return sendResponse(res, 500, false, "Failed to update delivery sequence");
   }
 }
@@ -798,9 +818,18 @@ export async function getKitchenBatches(req, res) {
 
     // Get summary
     const summary = {
-      collecting: await DeliveryBatch.countDocuments({ ...query, status: "COLLECTING" }),
-      dispatched: await DeliveryBatch.countDocuments({ ...query, status: "DISPATCHED" }),
-      inProgress: await DeliveryBatch.countDocuments({ ...query, status: "IN_PROGRESS" }),
+      collecting: await DeliveryBatch.countDocuments({
+        ...query,
+        status: "COLLECTING",
+      }),
+      dispatched: await DeliveryBatch.countDocuments({
+        ...query,
+        status: "DISPATCHED",
+      }),
+      inProgress: await DeliveryBatch.countDocuments({
+        ...query,
+        status: "IN_PROGRESS",
+      }),
       completed: await DeliveryBatch.countDocuments({
         ...query,
         status: { $in: ["COMPLETED", "PARTIAL_COMPLETE"] },
@@ -818,7 +847,7 @@ export async function getKitchenBatches(req, res) {
       },
     });
   } catch (error) {
-    console.error("Get kitchen batches error:", error);
+    console.log("Get kitchen batches error:", error);
     return sendResponse(res, 500, false, "Failed to retrieve kitchen batches");
   }
 }
@@ -836,7 +865,16 @@ export async function getKitchenBatches(req, res) {
  */
 export async function getAllBatches(req, res) {
   try {
-    const { kitchenId, zoneId, driverId, status, dateFrom, dateTo, page = 1, limit = 20 } = req.query;
+    const {
+      kitchenId,
+      zoneId,
+      driverId,
+      status,
+      dateFrom,
+      dateTo,
+      page = 1,
+      limit = 20,
+    } = req.query;
 
     const query = {};
 
@@ -873,7 +911,7 @@ export async function getAllBatches(req, res) {
       },
     });
   } catch (error) {
-    console.error("Get all batches error:", error);
+    console.log("Get all batches error:", error);
     return sendResponse(res, 500, false, "Failed to retrieve batches");
   }
 }
@@ -899,9 +937,11 @@ export async function getBatchById(req, res) {
 
     // Access control
     const isAdmin = user.role === "ADMIN";
-    const isKitchenStaff = user.role === "KITCHEN_STAFF" &&
+    const isKitchenStaff =
+      user.role === "KITCHEN_STAFF" &&
       user.kitchenId?.toString() === batch.kitchenId._id.toString();
-    const isDriver = user.role === "DRIVER" &&
+    const isDriver =
+      user.role === "DRIVER" &&
       batch.driverId?._id?.toString() === user._id.toString();
 
     if (!isAdmin && !isKitchenStaff && !isDriver) {
@@ -909,8 +949,9 @@ export async function getBatchById(req, res) {
     }
 
     // Get orders
-    const orders = await Order.find({ _id: { $in: batch.orderIds } })
-      .select("orderNumber status deliveryAddress items");
+    const orders = await Order.find({ _id: { $in: batch.orderIds } }).select(
+      "orderNumber status deliveryAddress items"
+    );
 
     // Get assignments
     const assignments = await DeliveryAssignment.find({ batchId });
@@ -921,7 +962,7 @@ export async function getBatchById(req, res) {
       assignments,
     });
   } catch (error) {
-    console.error("Get batch by ID error:", error);
+    console.log("Get batch by ID error:", error);
     return sendResponse(res, 500, false, "Failed to retrieve batch");
   }
 }
@@ -943,7 +984,12 @@ export async function reassignBatch(req, res) {
     }
 
     if (!["DISPATCHED", "IN_PROGRESS"].includes(batch.status)) {
-      return sendResponse(res, 400, false, "Can only reassign dispatched or in-progress batches");
+      return sendResponse(
+        res,
+        400,
+        false,
+        "Can only reassign dispatched or in-progress batches"
+      );
     }
 
     const previousDriver = batch.driverId;
@@ -975,7 +1021,7 @@ export async function reassignBatch(req, res) {
 
     return sendResponse(res, 200, true, "Batch reassigned", { batch });
   } catch (error) {
-    console.error("Reassign batch error:", error);
+    console.log("Reassign batch error:", error);
     return sendResponse(res, 500, false, "Failed to reassign batch");
   }
 }
@@ -997,7 +1043,12 @@ export async function cancelBatch(req, res) {
     }
 
     if (["COMPLETED", "PARTIAL_COMPLETE", "CANCELLED"].includes(batch.status)) {
-      return sendResponse(res, 400, false, "Cannot cancel completed or already cancelled batch");
+      return sendResponse(
+        res,
+        400,
+        false,
+        "Cannot cancel completed or already cancelled batch"
+      );
     }
 
     // Remove orders from batch
@@ -1030,7 +1081,7 @@ export async function cancelBatch(req, res) {
       ordersRemoved: batch.orderIds.length,
     });
   } catch (error) {
-    console.error("Cancel batch error:", error);
+    console.log("Cancel batch error:", error);
     return sendResponse(res, 500, false, "Failed to cancel batch");
   }
 }
@@ -1054,7 +1105,12 @@ export async function getDeliveryStats(req, res) {
     if (driverId) matchQuery.driverId = driverId;
 
     const stats = await DeliveryBatch.aggregate([
-      { $match: { ...matchQuery, status: { $in: ["COMPLETED", "PARTIAL_COMPLETE"] } } },
+      {
+        $match: {
+          ...matchQuery,
+          status: { $in: ["COMPLETED", "PARTIAL_COMPLETE"] },
+        },
+      },
       {
         $group: {
           _id: null,
@@ -1072,13 +1128,19 @@ export async function getDeliveryStats(req, res) {
     };
 
     const totalDeliveries = result.totalDelivered + result.totalFailed;
-    const successRate = totalDeliveries > 0
-      ? Math.round((result.totalDelivered / totalDeliveries) * 100)
-      : 0;
+    const successRate =
+      totalDeliveries > 0
+        ? Math.round((result.totalDelivered / totalDeliveries) * 100)
+        : 0;
 
     // Get by zone
     const byZone = await DeliveryBatch.aggregate([
-      { $match: { ...matchQuery, status: { $in: ["COMPLETED", "PARTIAL_COMPLETE"] } } },
+      {
+        $match: {
+          ...matchQuery,
+          status: { $in: ["COMPLETED", "PARTIAL_COMPLETE"] },
+        },
+      },
       {
         $group: {
           _id: "$zoneId",
@@ -1100,7 +1162,10 @@ export async function getDeliveryStats(req, res) {
           zone: "$zone.name",
           deliveries: 1,
           successRate: {
-            $round: [{ $multiply: [{ $divide: ["$delivered", "$deliveries"] }, 100] }, 0],
+            $round: [
+              { $multiply: [{ $divide: ["$delivered", "$deliveries"] }, 100] },
+              0,
+            ],
           },
         },
       },
@@ -1114,8 +1179,13 @@ export async function getDeliveryStats(req, res) {
       byZone,
     });
   } catch (error) {
-    console.error("Get delivery stats error:", error);
-    return sendResponse(res, 500, false, "Failed to retrieve delivery statistics");
+    console.log("Get delivery stats error:", error);
+    return sendResponse(
+      res,
+      500,
+      false,
+      "Failed to retrieve delivery statistics"
+    );
   }
 }
 
@@ -1132,8 +1202,10 @@ export async function updateBatchConfig(req, res) {
     const previousConfig = { ...BATCH_CONFIG };
 
     if (maxBatchSize !== undefined) BATCH_CONFIG.maxBatchSize = maxBatchSize;
-    if (failedOrderPolicy !== undefined) BATCH_CONFIG.failedOrderPolicy = failedOrderPolicy;
-    if (autoDispatchDelay !== undefined) BATCH_CONFIG.autoDispatchDelay = autoDispatchDelay;
+    if (failedOrderPolicy !== undefined)
+      BATCH_CONFIG.failedOrderPolicy = failedOrderPolicy;
+    if (autoDispatchDelay !== undefined)
+      BATCH_CONFIG.autoDispatchDelay = autoDispatchDelay;
 
     // Log audit
     await AuditLog.create({
@@ -1148,8 +1220,13 @@ export async function updateBatchConfig(req, res) {
       config: BATCH_CONFIG,
     });
   } catch (error) {
-    console.error("Update batch config error:", error);
-    return sendResponse(res, 500, false, "Failed to update batch configuration");
+    console.log("Update batch config error:", error);
+    return sendResponse(
+      res,
+      500,
+      false,
+      "Failed to update batch configuration"
+    );
   }
 }
 

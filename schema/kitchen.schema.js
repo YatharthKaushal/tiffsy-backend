@@ -14,6 +14,13 @@ const kitchenSchema = new mongoose.Schema(
       maxlength: [100, "Kitchen name cannot exceed 100 characters"],
     },
 
+    code: {
+      type: String,
+      unique: true,
+      sparse: true,
+      trim: true,
+    },
+
     // Kitchen Type & Flags
     type: {
       type: String,
@@ -182,7 +189,7 @@ const kitchenSchema = new mongoose.Schema(
       type: String,
       required: true,
       enum: {
-        values: ["ACTIVE", "INACTIVE", "SUSPENDED", "PENDING_APPROVAL"],
+        values: ["ACTIVE", "INACTIVE", "SUSPENDED", "PENDING_APPROVAL", "DELETED"],
         message: "Invalid status",
       },
       default: "PENDING_APPROVAL",
@@ -251,6 +258,26 @@ kitchenSchema.methods.servesZone = function (zoneId) {
   return this.zonesServed.some(
     (zone) => zone.toString() === zoneId.toString()
   );
+};
+
+// Static method to generate unique kitchen code
+kitchenSchema.statics.generateKitchenCode = async function () {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let code;
+  let isUnique = false;
+
+  while (!isUnique) {
+    code = "KIT-";
+    for (let i = 0; i < 5; i++) {
+      code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    const existing = await this.findOne({ code });
+    if (!existing) {
+      isUnique = true;
+    }
+  }
+
+  return code;
 };
 
 // Static method to find active kitchens by zone

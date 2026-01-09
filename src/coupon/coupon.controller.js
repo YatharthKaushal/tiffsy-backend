@@ -1,7 +1,7 @@
 import Coupon from "../../schema/coupon.schema.js";
 import Order from "../../schema/order.schema.js";
 import AuditLog from "../../schema/auditLog.schema.js";
-import { sendResponse } from "../utils/response.utils.js";
+import { sendResponse } from "../../utils/response.utils.js";
 
 /**
  * ============================================================================
@@ -229,7 +229,7 @@ export async function createCoupon(req, res) {
       coupon,
     });
   } catch (error) {
-    console.error("Create coupon error:", error);
+    console.log("Create coupon error:", error);
     return sendResponse(res, 500, false, "Failed to create coupon");
   }
 }
@@ -285,7 +285,7 @@ export async function getCoupons(req, res) {
       },
     });
   } catch (error) {
-    console.error("Get coupons error:", error);
+    console.log("Get coupons error:", error);
     return sendResponse(res, 500, false, "Failed to retrieve coupons");
   }
 }
@@ -331,7 +331,7 @@ export async function getCouponById(req, res) {
       })),
     });
   } catch (error) {
-    console.error("Get coupon by ID error:", error);
+    console.log("Get coupon by ID error:", error);
     return sendResponse(res, 500, false, "Failed to retrieve coupon");
   }
 }
@@ -407,7 +407,7 @@ export async function updateCoupon(req, res) {
       coupon,
     });
   } catch (error) {
-    console.error("Update coupon error:", error);
+    console.log("Update coupon error:", error);
     return sendResponse(res, 500, false, "Failed to update coupon");
   }
 }
@@ -456,7 +456,7 @@ export async function activateCoupon(req, res) {
 
     return sendResponse(res, 200, true, "Coupon activated", { coupon });
   } catch (error) {
-    console.error("Activate coupon error:", error);
+    console.log("Activate coupon error:", error);
     return sendResponse(res, 500, false, "Failed to activate coupon");
   }
 }
@@ -493,7 +493,7 @@ export async function deactivateCoupon(req, res) {
 
     return sendResponse(res, 200, true, "Coupon deactivated", { coupon });
   } catch (error) {
-    console.error("Deactivate coupon error:", error);
+    console.log("Deactivate coupon error:", error);
     return sendResponse(res, 500, false, "Failed to deactivate coupon");
   }
 }
@@ -535,7 +535,7 @@ export async function deleteCoupon(req, res) {
 
     return sendResponse(res, 200, true, "Coupon deleted successfully");
   } catch (error) {
-    console.error("Delete coupon error:", error);
+    console.log("Delete coupon error:", error);
     return sendResponse(res, 500, false, "Failed to delete coupon");
   }
 }
@@ -639,7 +639,7 @@ export async function getAvailableCoupons(req, res) {
       coupons: eligibleCoupons,
     });
   } catch (error) {
-    console.error("Get available coupons error:", error);
+    console.log("Get available coupons error:", error);
     return sendResponse(res, 500, false, "Failed to retrieve available coupons");
   }
 }
@@ -708,7 +708,7 @@ export async function validateCoupon(req, res) {
       reason: null,
     });
   } catch (error) {
-    console.error("Validate coupon error:", error);
+    console.log("Validate coupon error:", error);
     return sendResponse(res, 500, false, "Failed to validate coupon");
   }
 }
@@ -755,7 +755,7 @@ export async function applyCoupon(req, res) {
       discountAmount,
     });
   } catch (error) {
-    console.error("Apply coupon error:", error);
+    console.log("Apply coupon error:", error);
     return sendResponse(res, 500, false, "Failed to apply coupon");
   }
 }
@@ -783,7 +783,7 @@ export async function expireCoupons(req, res) {
       expiredCount: result.modifiedCount,
     });
   } catch (error) {
-    console.error("Expire coupons error:", error);
+    console.log("Expire coupons error:", error);
     return sendResponse(res, 500, false, "Failed to expire coupons");
   }
 }

@@ -1,5 +1,6 @@
 import Joi from "joi";
 import { sendResponse } from "../utils/response.utils.js";
+import { normalizePhone, isValidPhone } from "../utils/phone.utils.js";
 
 /**
  * Creates a validation middleware for request body
@@ -88,8 +89,21 @@ export const commonSchemas = {
     id: Joi.string().hex().length(24).required(),
   }),
 
-  // Phone number validation (Indian format)
-  phone: Joi.string().pattern(/^\+?[0-9]{10,15}$/),
+  // Phone number validation with normalization (extracts last 10 digits)
+  phone: Joi.string()
+    .custom((value, helpers) => {
+      const normalized = normalizePhone(value);
+      if (!normalized) {
+        return helpers.error("string.pattern.base");
+      }
+      if (!isValidPhone(normalized)) {
+        return helpers.error("string.pattern.base");
+      }
+      return normalized;
+    })
+    .messages({
+      "string.pattern.base": "Phone must be a valid 10-digit Indian mobile number",
+    }),
 
   // Date range query schema
   dateRange: Joi.object({

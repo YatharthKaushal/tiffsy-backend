@@ -2,7 +2,7 @@ import Voucher from "../../schema/voucher.schema.js";
 import Subscription from "../../schema/subscription.schema.js";
 import Kitchen from "../../schema/kitchen.schema.js";
 import AuditLog from "../../schema/auditLog.schema.js";
-import { sendResponse } from "../utils/response.utils.js";
+import { sendResponse } from "../../utils/response.utils.js";
 
 /**
  * Voucher Controller
@@ -25,7 +25,8 @@ let CUTOFF_CONFIG = { ...DEFAULT_CUTOFF_TIMES };
  */
 const checkCutoff = (mealWindow) => {
   const now = new Date();
-  const cutoffTime = CUTOFF_CONFIG[mealWindow] || DEFAULT_CUTOFF_TIMES[mealWindow];
+  const cutoffTime =
+    CUTOFF_CONFIG[mealWindow] || DEFAULT_CUTOFF_TIMES[mealWindow];
   const [cutoffHour, cutoffMin] = cutoffTime.split(":").map(Number);
 
   const cutoffDate = new Date();
@@ -160,7 +161,7 @@ export const getVoucherBalance = async (req, res) => {
       nextCutoff,
     });
   } catch (error) {
-    console.error("> Get voucher balance error:", error);
+    console.log("> Get voucher balance error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -211,7 +212,7 @@ export const getMyVouchers = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("> Get my vouchers error:", error);
+    console.log("> Get my vouchers error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -268,7 +269,7 @@ export const getVoucherById = async (req, res) => {
       restorationDetails,
     });
   } catch (error) {
-    console.error("> Get voucher by ID error:", error);
+    console.log("> Get voucher by ID error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -280,7 +281,12 @@ export const getVoucherById = async (req, res) => {
  */
 export const checkVoucherEligibility = async (req, res) => {
   try {
-    const { kitchenId, menuType, mealWindow, mainCourseQuantity = 1 } = req.body;
+    const {
+      kitchenId,
+      menuType,
+      mealWindow,
+      mainCourseQuantity = 1,
+    } = req.body;
     const userId = req.user._id;
 
     // Vouchers only for MEAL_MENU
@@ -329,7 +335,7 @@ export const checkVoucherEligibility = async (req, res) => {
       reason: availableVouchers === 0 ? "No vouchers available" : null,
     });
   } catch (error) {
-    console.error("> Check voucher eligibility error:", error);
+    console.log("> Check voucher eligibility error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -381,7 +387,7 @@ export const redeemVouchers = async (req, res) => {
       count: redeemedIds.length,
     });
   } catch (error) {
-    console.error("> Redeem vouchers error:", error);
+    console.log("> Redeem vouchers error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -429,7 +435,7 @@ export const restoreVouchers = async (req, res) => {
       count: restoredIds.length,
     });
   } catch (error) {
-    console.error("> Restore vouchers error:", error);
+    console.log("> Restore vouchers error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -445,7 +451,15 @@ export const restoreVouchers = async (req, res) => {
  */
 export const getAllVouchers = async (req, res) => {
   try {
-    const { userId, subscriptionId, status, dateFrom, dateTo, page = 1, limit = 50 } = req.query;
+    const {
+      userId,
+      subscriptionId,
+      status,
+      dateFrom,
+      dateTo,
+      page = 1,
+      limit = 50,
+    } = req.query;
 
     const query = {};
     if (userId) query.userId = userId;
@@ -480,7 +494,7 @@ export const getAllVouchers = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("> Get all vouchers error:", error);
+    console.log("> Get all vouchers error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -512,7 +526,9 @@ export const getVoucherStats = async (req, res) => {
     };
 
     for (const stat of stats) {
-      const key = `total${stat._id.charAt(0) + stat._id.slice(1).toLowerCase()}`;
+      const key = `total${
+        stat._id.charAt(0) + stat._id.slice(1).toLowerCase()
+      }`;
       result[key] = stat.count;
       result.totalIssued += stat.count;
     }
@@ -553,7 +569,7 @@ export const getVoucherStats = async (req, res) => {
 
     return sendResponse(res, 200, "Voucher statistics", result);
   } catch (error) {
-    console.error("> Get voucher stats error:", error);
+    console.log("> Get voucher stats error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -581,7 +597,7 @@ export const expireVouchers = async (req, res) => {
       expiredCount: result.modifiedCount,
     });
   } catch (error) {
-    console.error("> Expire vouchers error:", error);
+    console.log("> Expire vouchers error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -641,7 +657,7 @@ export const adminRestoreVouchers = async (req, res) => {
       count: restoredIds.length,
     });
   } catch (error) {
-    console.error("> Admin restore vouchers error:", error);
+    console.log("> Admin restore vouchers error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -688,7 +704,7 @@ export const getCutoffTimes = async (req, res) => {
       currentTime: now.toTimeString().slice(0, 5),
     });
   } catch (error) {
-    console.error("> Get cutoff times error:", error);
+    console.log("> Get cutoff times error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -728,7 +744,7 @@ export const updateCutoffTimes = async (req, res) => {
       dinner: CUTOFF_CONFIG.DINNER,
     });
   } catch (error) {
-    console.error("> Update cutoff times error:", error);
+    console.log("> Update cutoff times error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };

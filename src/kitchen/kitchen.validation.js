@@ -1,5 +1,5 @@
 import Joi from "joi";
-import { commonSchemas } from "../middlewares/validate.middleware.js";
+import { commonSchemas } from "../../middlewares/validate.middleware.js";
 
 /**
  * Kitchen Validation Schemas

@@ -2,7 +2,7 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import User from "../../schema/user.schema.js";
 import Kitchen from "../../schema/kitchen.schema.js";
-import { sendResponse } from "../utils/response.utils.js";
+import { sendResponse } from "../../utils/response.utils.js";
 
 /**
  * Auth Controller
@@ -126,7 +126,7 @@ export const syncUser = async (req, res) => {
       isProfileComplete: true,
     });
   } catch (error) {
-    console.error("> Auth sync error:", error);
+    console.log("> Auth sync error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -158,7 +158,7 @@ export const completeProfile = async (req, res) => {
       isProfileComplete: true,
     });
   } catch (error) {
-    console.error("> Profile update error:", error);
+    console.log("> Profile update error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -190,7 +190,7 @@ export const getCurrentUser = async (req, res) => {
 
     return sendResponse(res, 200, "User profile", response);
   } catch (error) {
-    console.error("> Get current user error:", error);
+    console.log("> Get current user error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -238,7 +238,7 @@ export const updateFcmToken = async (req, res) => {
 
     return sendResponse(res, 200, "FCM token registered");
   } catch (error) {
-    console.error("> FCM token update error:", error);
+    console.log("> FCM token update error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -264,7 +264,7 @@ export const removeFcmToken = async (req, res) => {
 
     return sendResponse(res, 200, "FCM token removed");
   } catch (error) {
-    console.error("> FCM token remove error:", error);
+    console.log("> FCM token remove error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -330,7 +330,7 @@ export const adminLogin = async (req, res) => {
       expiresIn,
     });
   } catch (error) {
-    console.error("> Admin login error:", error);
+    console.log("> Admin login error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -376,7 +376,7 @@ export const adminChangePassword = async (req, res) => {
 
     return sendResponse(res, 200, "Password changed successfully");
   } catch (error) {
-    console.error("> Password change error:", error);
+    console.log("> Password change error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -408,7 +408,7 @@ export const adminRefreshToken = async (req, res) => {
       expiresIn,
     });
   } catch (error) {
-    console.error("> Token refresh error:", error);
+    console.log("> Token refresh error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };

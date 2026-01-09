@@ -2,7 +2,7 @@ import Refund from "../../schema/refund.schema.js";
 import Order from "../../schema/order.schema.js";
 import Voucher from "../../schema/voucher.schema.js";
 import AuditLog from "../../schema/auditLog.schema.js";
-import { sendResponse } from "../utils/response.utils.js";
+import { sendResponse } from "../../utils/response.utils.js";
 
 /**
  * ============================================================================
@@ -45,11 +45,17 @@ async function callPaymentGatewayRefund(originalPaymentId, amount) {
   const isSuccess = Math.random() > 0.05;
 
   if (isSuccess) {
-    const gatewayRefundId = `rfnd_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+    const gatewayRefundId = `rfnd_${Date.now()}_${Math.random()
+      .toString(36)
+      .substring(2, 8)}`;
     return { success: true, gatewayRefundId, error: null };
   }
 
-  return { success: false, gatewayRefundId: null, error: "Gateway error: Transaction failed" };
+  return {
+    success: false,
+    gatewayRefundId: null,
+    error: "Gateway error: Transaction failed",
+  };
 }
 
 /**
@@ -116,8 +122,8 @@ async function restoreOrderVouchers(orderId, reason) {
         redeemedAt: null,
         redeemedOrderId: null,
         redeemedKitchenId: null,
-        redeemedMealWindow: null
-      }
+        redeemedMealWindow: null,
+      },
     }
   );
 
@@ -165,7 +171,13 @@ function getEstimatedCompletion(initiatedAt) {
  */
 export async function initiateRefund(req, res) {
   try {
-    const { orderId, reason, reasonDetails, refundType = "FULL", amount } = req.body;
+    const {
+      orderId,
+      reason,
+      reasonDetails,
+      refundType = "FULL",
+      amount,
+    } = req.body;
 
     // Fetch order
     const order = await Order.findById(orderId);
@@ -191,19 +203,24 @@ export async function initiateRefund(req, res) {
           status: "INITIATED",
           originalPaymentId: order.paymentId || "N/A",
           initiatedAt: new Date(),
-        }
+        },
       },
       {
         upsert: true,
         new: true,
         setDefaultsOnInsert: true,
-        rawResult: true
+        rawResult: true,
       }
     );
 
     // If it was an existing document (not newly inserted), return conflict
     if (!existingOrCreated.lastErrorObject?.upserted) {
-      return sendResponse(res, 409, false, "Refund already in progress for this order");
+      return sendResponse(
+        res,
+        409,
+        false,
+        "Refund already in progress for this order"
+      );
     }
 
     // Get the newly created refund document to continue processing
@@ -222,7 +239,12 @@ export async function initiateRefund(req, res) {
     if (refundAmount > refundable) {
       // Delete the placeholder refund we created
       await Refund.findByIdAndDelete(refund._id);
-      return sendResponse(res, 400, false, `Maximum refundable amount is ${refundable}`);
+      return sendResponse(
+        res,
+        400,
+        false,
+        `Maximum refundable amount is ${refundable}`
+      );
     }
 
     // Handle voucher-only orders
@@ -234,10 +256,16 @@ export async function initiateRefund(req, res) {
       const voucherResult = await restoreOrderVouchers(orderId, reason);
       vouchersRestored = voucherResult.restored;
 
-      return sendResponse(res, 200, true, "Vouchers restored (no monetary refund)", {
-        refund: null,
-        vouchersRestored,
-      });
+      return sendResponse(
+        res,
+        200,
+        true,
+        "Vouchers restored (no monetary refund)",
+        {
+          refund: null,
+          vouchersRestored,
+        }
+      );
     }
 
     // Update the placeholder refund with actual values
@@ -263,7 +291,7 @@ export async function initiateRefund(req, res) {
       vouchersRestored,
     });
   } catch (error) {
-    console.error("Initiate refund error:", error);
+    console.log("Initiate refund error:", error);
     return sendResponse(res, 500, false, "Failed to initiate refund");
   }
 }
@@ -283,7 +311,12 @@ export async function processRefund(req, res) {
     }
 
     if (!["INITIATED", "PENDING", "FAILED"].includes(refund.status)) {
-      return sendResponse(res, 400, false, "Refund cannot be processed in current status");
+      return sendResponse(
+        res,
+        400,
+        false,
+        "Refund cannot be processed in current status"
+      );
     }
 
     // Update status to processing
@@ -296,7 +329,10 @@ export async function processRefund(req, res) {
     await refund.save();
 
     // Call payment gateway
-    const gatewayResult = await callPaymentGatewayRefund(refund.originalPaymentId, refund.amount);
+    const gatewayResult = await callPaymentGatewayRefund(
+      refund.originalPaymentId,
+      refund.amount
+    );
 
     if (gatewayResult.success) {
       refund.status = "COMPLETED";
@@ -343,7 +379,7 @@ export async function processRefund(req, res) {
       success: gatewayResult.success,
     });
   } catch (error) {
-    console.error("Process refund error:", error);
+    console.log("Process refund error:", error);
     return sendResponse(res, 500, false, "Failed to process refund");
   }
 }
@@ -387,7 +423,10 @@ export async function processFailedRefunds(req, res) {
       refund.status = "PROCESSING";
       await refund.save();
 
-      const gatewayResult = await callPaymentGatewayRefund(refund.originalPaymentId, refund.amount);
+      const gatewayResult = await callPaymentGatewayRefund(
+        refund.originalPaymentId,
+        refund.amount
+      );
 
       if (gatewayResult.success) {
         refund.status = "COMPLETED";
@@ -410,7 +449,7 @@ export async function processFailedRefunds(req, res) {
 
     return sendResponse(res, 200, true, "Failed refunds processed", results);
   } catch (error) {
-    console.error("Process failed refunds error:", error);
+    console.log("Process failed refunds error:", error);
     return sendResponse(res, 500, false, "Failed to process failed refunds");
   }
 }
@@ -465,7 +504,7 @@ export async function getMyRefunds(req, res) {
       },
     });
   } catch (error) {
-    console.error("Get my refunds error:", error);
+    console.log("Get my refunds error:", error);
     return sendResponse(res, 500, false, "Failed to retrieve refunds");
   }
 }
@@ -491,7 +530,12 @@ export async function getRefundById(req, res) {
     const isAdmin = user.role === "ADMIN";
 
     if (!isOwner && !isAdmin) {
-      return sendResponse(res, 403, false, "Not authorized to view this refund");
+      return sendResponse(
+        res,
+        403,
+        false,
+        "Not authorized to view this refund"
+      );
     }
 
     // Get vouchers restored info
@@ -513,7 +557,7 @@ export async function getRefundById(req, res) {
       vouchersRestored,
     });
   } catch (error) {
-    console.error("Get refund by ID error:", error);
+    console.log("Get refund by ID error:", error);
     return sendResponse(res, 500, false, "Failed to retrieve refund");
   }
 }
@@ -531,7 +575,16 @@ export async function getRefundById(req, res) {
  */
 export async function getAllRefunds(req, res) {
   try {
-    const { userId, orderId, status, reason, dateFrom, dateTo, page = 1, limit = 20 } = req.query;
+    const {
+      userId,
+      orderId,
+      status,
+      reason,
+      dateFrom,
+      dateTo,
+      page = 1,
+      limit = 20,
+    } = req.query;
 
     const query = {};
 
@@ -590,7 +643,7 @@ export async function getAllRefunds(req, res) {
       },
     });
   } catch (error) {
-    console.error("Get all refunds error:", error);
+    console.log("Get all refunds error:", error);
     return sendResponse(res, 500, false, "Failed to retrieve refunds");
   }
 }
@@ -614,7 +667,12 @@ export async function initiateManualRefund(req, res) {
     // Verify refundable amount
     const refundable = await calculateRefundableAmount(orderId);
     if (amount > refundable) {
-      return sendResponse(res, 400, false, `Maximum refundable amount is ${refundable}`);
+      return sendResponse(
+        res,
+        400,
+        false,
+        `Maximum refundable amount is ${refundable}`
+      );
     }
 
     // Create refund
@@ -654,7 +712,7 @@ export async function initiateManualRefund(req, res) {
 
     return sendResponse(res, 201, true, "Manual refund initiated", { refund });
   } catch (error) {
-    console.error("Initiate manual refund error:", error);
+    console.log("Initiate manual refund error:", error);
     return sendResponse(res, 500, false, "Failed to initiate manual refund");
   }
 }
@@ -675,7 +733,12 @@ export async function approveRefund(req, res) {
     }
 
     if (refund.status !== "PENDING") {
-      return sendResponse(res, 400, false, "Only pending refunds can be approved");
+      return sendResponse(
+        res,
+        400,
+        false,
+        "Only pending refunds can be approved"
+      );
     }
 
     refund.approvedBy = adminId;
@@ -699,7 +762,10 @@ export async function approveRefund(req, res) {
 
     // Process the refund
     // In production, this might be queued
-    const gatewayResult = await callPaymentGatewayRefund(refund.originalPaymentId, refund.amount);
+    const gatewayResult = await callPaymentGatewayRefund(
+      refund.originalPaymentId,
+      refund.amount
+    );
 
     if (gatewayResult.success) {
       refund.status = "COMPLETED";
@@ -712,9 +778,11 @@ export async function approveRefund(req, res) {
 
     await refund.save();
 
-    return sendResponse(res, 200, true, "Refund approved and processed", { refund });
+    return sendResponse(res, 200, true, "Refund approved and processed", {
+      refund,
+    });
   } catch (error) {
-    console.error("Approve refund error:", error);
+    console.log("Approve refund error:", error);
     return sendResponse(res, 500, false, "Failed to approve refund");
   }
 }
@@ -761,7 +829,7 @@ export async function cancelRefund(req, res) {
 
     return sendResponse(res, 200, true, "Refund cancelled", { refund });
   } catch (error) {
-    console.error("Cancel refund error:", error);
+    console.log("Cancel refund error:", error);
     return sendResponse(res, 500, false, "Failed to cancel refund");
   }
 }
@@ -795,7 +863,10 @@ export async function retryRefund(req, res) {
     });
     await refund.save();
 
-    const gatewayResult = await callPaymentGatewayRefund(refund.originalPaymentId, refund.amount);
+    const gatewayResult = await callPaymentGatewayRefund(
+      refund.originalPaymentId,
+      refund.amount
+    );
 
     if (gatewayResult.success) {
       refund.status = "COMPLETED";
@@ -822,7 +893,7 @@ export async function retryRefund(req, res) {
       success: gatewayResult.success,
     });
   } catch (error) {
-    console.error("Retry refund error:", error);
+    console.log("Retry refund error:", error);
     return sendResponse(res, 500, false, "Failed to retry refund");
   }
 }
@@ -863,7 +934,13 @@ export async function getRefundStats(req, res) {
       ]),
       Refund.aggregate([
         { $match: matchQuery },
-        { $group: { _id: "$status", count: { $sum: 1 }, amount: { $sum: "$amount" } } },
+        {
+          $group: {
+            _id: "$status",
+            count: { $sum: 1 },
+            amount: { $sum: "$amount" },
+          },
+        },
       ]),
       Refund.aggregate([
         { $match: matchQuery },
@@ -929,8 +1006,13 @@ export async function getRefundStats(req, res) {
       successRate,
     });
   } catch (error) {
-    console.error("Get refund stats error:", error);
-    return sendResponse(res, 500, false, "Failed to retrieve refund statistics");
+    console.log("Get refund stats error:", error);
+    return sendResponse(
+      res,
+      500,
+      false,
+      "Failed to retrieve refund statistics"
+    );
   }
 }
 

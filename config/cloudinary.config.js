@@ -40,7 +40,7 @@ try {
   console.log("> Cloudinary configured successfully");
   console.log(`> Cloud Name: ${CLOUDINARY_CLOUD_NAME}`);
 } catch (error) {
-  console.error("> Cloudinary configuration failed:", error.message);
+  console.log("> Cloudinary configuration failed:", error.message);
   console.warn("> Server will continue but Cloudinary features will not work");
 }
 

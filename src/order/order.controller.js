@@ -52,27 +52,47 @@ async function validateOrderItems(items, kitchenId, menuType, mealWindow) {
     // Fetch menu item
     const menuItem = await MenuItem.findById(item.menuItemId);
     if (!menuItem) {
-      return { valid: false, error: `Menu item not found: ${item.menuItemId}`, validatedItems: [] };
+      return {
+        valid: false,
+        error: `Menu item not found: ${item.menuItemId}`,
+        validatedItems: [],
+      };
     }
 
     // Verify kitchen ownership
     if (menuItem.kitchenId.toString() !== kitchenId) {
-      return { valid: false, error: `Menu item ${menuItem.name} does not belong to this kitchen`, validatedItems: [] };
+      return {
+        valid: false,
+        error: `Menu item ${menuItem.name} does not belong to this kitchen`,
+        validatedItems: [],
+      };
     }
 
     // Verify menu type
     if (menuItem.menuType !== menuType) {
-      return { valid: false, error: `Menu item ${menuItem.name} is not available for ${menuType}`, validatedItems: [] };
+      return {
+        valid: false,
+        error: `Menu item ${menuItem.name} is not available for ${menuType}`,
+        validatedItems: [],
+      };
     }
 
     // Verify meal window for MEAL_MENU
     if (menuType === "MEAL_MENU" && menuItem.mealWindow !== mealWindow) {
-      return { valid: false, error: `Menu item ${menuItem.name} is not available for ${mealWindow}`, validatedItems: [] };
+      return {
+        valid: false,
+        error: `Menu item ${menuItem.name} is not available for ${mealWindow}`,
+        validatedItems: [],
+      };
     }
 
     // Verify availability
     if (!menuItem.isAvailable || menuItem.status !== "ACTIVE") {
-      return { valid: false, error: `Menu item ${menuItem.name} is not available`, validatedItems: [] };
+      return {
+        valid: false,
+        error: `Menu item ${menuItem.name} is not available`,
+        validatedItems: [],
+      };
     }
 
     // Validate addons
@@ -81,20 +101,39 @@ async function validateOrderItems(items, kitchenId, menuType, mealWindow) {
       for (const addon of item.addons) {
         const addonDoc = await Addon.findById(addon.addonId);
         if (!addonDoc) {
-          return { valid: false, error: `Addon not found: ${addon.addonId}`, validatedItems: [] };
+          return {
+            valid: false,
+            error: `Addon not found: ${addon.addonId}`,
+            validatedItems: [],
+          };
         }
 
         if (addonDoc.kitchenId.toString() !== kitchenId) {
-          return { valid: false, error: `Addon ${addonDoc.name} does not belong to this kitchen`, validatedItems: [] };
+          return {
+            valid: false,
+            error: `Addon ${addonDoc.name} does not belong to this kitchen`,
+            validatedItems: [],
+          };
         }
 
         if (!addonDoc.isAvailable || addonDoc.status !== "ACTIVE") {
-          return { valid: false, error: `Addon ${addonDoc.name} is not available`, validatedItems: [] };
+          return {
+            valid: false,
+            error: `Addon ${addonDoc.name} is not available`,
+            validatedItems: [],
+          };
         }
 
         // Check quantity limits
-        if (addon.quantity < addonDoc.minQuantity || addon.quantity > addonDoc.maxQuantity) {
-          return { valid: false, error: `Addon ${addonDoc.name} quantity must be between ${addonDoc.minQuantity} and ${addonDoc.maxQuantity}`, validatedItems: [] };
+        if (
+          addon.quantity < addonDoc.minQuantity ||
+          addon.quantity > addonDoc.maxQuantity
+        ) {
+          return {
+            valid: false,
+            error: `Addon ${addonDoc.name} quantity must be between ${addonDoc.minQuantity} and ${addonDoc.maxQuantity}`,
+            validatedItems: [],
+          };
         }
 
         validatedAddons.push({
@@ -176,7 +215,8 @@ function calculateOrderPricing(items, voucherCount, couponDiscount, menuType) {
     // Each voucher covers one main course
     mainCoursesCovered = Math.min(voucherCount, mainCoursesCount);
     // Calculate average price per main course
-    const avgMainCoursePrice = mainCoursesCount > 0 ? mainCoursesValue / mainCoursesCount : 0;
+    const avgMainCoursePrice =
+      mainCoursesCount > 0 ? mainCoursesValue / mainCoursesCount : 0;
     voucherCoverage = avgMainCoursePrice * mainCoursesCovered;
   }
 
@@ -191,19 +231,25 @@ function calculateOrderPricing(items, voucherCount, couponDiscount, menuType) {
   }
 
   // Calculate grand total
-  const totalCharges = charges.deliveryFee + charges.serviceFee +
-    charges.packagingFee + charges.handlingFee + charges.taxAmount;
+  const totalCharges =
+    charges.deliveryFee +
+    charges.serviceFee +
+    charges.packagingFee +
+    charges.handlingFee +
+    charges.taxAmount;
   const grandTotal = subtotal + totalCharges - discountAmount;
   const amountToPay = Math.max(0, grandTotal - voucherCoverage);
 
   return {
     subtotal,
     charges,
-    discount: couponDiscount ? {
-      couponCode: couponDiscount.couponCode,
-      discountType: couponDiscount.discountType,
-      discountAmount,
-    } : null,
+    discount: couponDiscount
+      ? {
+          couponCode: couponDiscount.couponCode,
+          discountType: couponDiscount.discountType,
+          discountAmount,
+        }
+      : null,
     voucherCoverage: {
       voucherCount,
       mainCoursesCovered,
@@ -317,11 +363,21 @@ export async function createOrder(req, res) {
       isDeleted: false,
     });
     if (!address) {
-      return sendResponse(res, 404, false, "Delivery address not found or not owned by user");
+      return sendResponse(
+        res,
+        404,
+        false,
+        "Delivery address not found or not owned by user"
+      );
     }
 
     if (!address.isServiceable) {
-      return sendResponse(res, 400, false, "Delivery address is not serviceable");
+      return sendResponse(
+        res,
+        400,
+        false,
+        "Delivery address is not serviceable"
+      );
     }
 
     // Validate kitchen
@@ -339,18 +395,31 @@ export async function createOrder(req, res) {
     }
 
     // Verify kitchen serves the zone
-    if (!kitchen.zonesServed.some((z) => z.toString() === address.zoneId.toString())) {
+    if (
+      !kitchen.zonesServed.some(
+        (z) => z.toString() === address.zoneId.toString()
+      )
+    ) {
       return sendResponse(res, 400, false, "Kitchen does not serve your area");
     }
 
     // Validate order items
-    const itemValidation = await validateOrderItems(items, kitchenId, menuType, mealWindow);
+    const itemValidation = await validateOrderItems(
+      items,
+      kitchenId,
+      menuType,
+      mealWindow
+    );
     if (!itemValidation.valid) {
       return sendResponse(res, 400, false, itemValidation.error);
     }
 
     // Check cutoff time for MEAL_MENU voucher orders
-    if (menuType === "MEAL_MENU" && voucherCount > 0 && isCutoffPassed(mealWindow)) {
+    if (
+      menuType === "MEAL_MENU" &&
+      voucherCount > 0 &&
+      isCutoffPassed(mealWindow)
+    ) {
       return sendResponse(
         res,
         400,
@@ -385,7 +454,10 @@ export async function createOrder(req, res) {
       const coupon = await Coupon.findOne({ code: couponCode.toUpperCase() });
       if (coupon && coupon.isValid()) {
         const subtotal = itemValidation.validatedItems.reduce((sum, item) => {
-          const addonsTotal = item.addons.reduce((a, addon) => a + addon.totalPrice, 0);
+          const addonsTotal = item.addons.reduce(
+            (a, addon) => a + addon.totalPrice,
+            0
+          );
           return sum + item.totalPrice + addonsTotal;
         }, 0);
 
@@ -436,12 +508,14 @@ export async function createOrder(req, res) {
       items: itemValidation.validatedItems,
       subtotal: pricing.subtotal,
       charges: pricing.charges,
-      discount: couponDiscount ? {
-        couponId: couponDiscount.couponId,
-        couponCode: couponDiscount.couponCode,
-        discountAmount: couponDiscount.discountAmount,
-        discountType: couponDiscount.discountType,
-      } : undefined,
+      discount: couponDiscount
+        ? {
+            couponId: couponDiscount.couponId,
+            couponCode: couponDiscount.couponCode,
+            discountAmount: couponDiscount.discountAmount,
+            discountType: couponDiscount.discountType,
+          }
+        : undefined,
       grandTotal: pricing.grandTotal,
       voucherUsage: {
         voucherIds: redeemedVouchers,
@@ -477,7 +551,7 @@ export async function createOrder(req, res) {
       paymentRequired: pricing.amountToPay > 0,
     });
   } catch (error) {
-    console.error("Create order error:", error);
+    console.log("Create order error:", error);
     return sendResponse(res, 500, false, "Failed to place order");
   }
 }
@@ -501,7 +575,12 @@ export async function getOrderPricing(req, res) {
     } = req.body;
 
     // Validate items
-    const itemValidation = await validateOrderItems(items, kitchenId, menuType, mealWindow);
+    const itemValidation = await validateOrderItems(
+      items,
+      kitchenId,
+      menuType,
+      mealWindow
+    );
     if (!itemValidation.valid) {
       return sendResponse(res, 400, false, itemValidation.error);
     }
@@ -516,7 +595,10 @@ export async function getOrderPricing(req, res) {
 
     if (menuType === "MEAL_MENU") {
       // Use voucher service for available count
-      const availableVouchers = await getAvailableVoucherCount(userId, mealWindow);
+      const availableVouchers = await getAvailableVoucherCount(
+        userId,
+        mealWindow
+      );
       const cutoffInfo = checkCutoffTime(mealWindow);
 
       voucherEligibility.available = availableVouchers;
@@ -526,7 +608,9 @@ export async function getOrderPricing(req, res) {
         currentTime: cutoffInfo.currentTime,
         message: cutoffInfo.message,
       };
-      voucherEligibility.canUse = cutoffInfo.isPastCutoff ? 0 : Math.min(voucherCount, availableVouchers);
+      voucherEligibility.canUse = cutoffInfo.isPastCutoff
+        ? 0
+        : Math.min(voucherCount, availableVouchers);
     }
 
     // Handle coupon validation
@@ -534,7 +618,10 @@ export async function getOrderPricing(req, res) {
     if (menuType === "ON_DEMAND_MENU" && couponCode) {
       const coupon = await Coupon.findOne({ code: couponCode.toUpperCase() });
       const subtotal = itemValidation.validatedItems.reduce((sum, item) => {
-        const addonsTotal = item.addons.reduce((a, addon) => a + addon.totalPrice, 0);
+        const addonsTotal = item.addons.reduce(
+          (a, addon) => a + addon.totalPrice,
+          0
+        );
         return sum + item.totalPrice + addonsTotal;
       }, 0);
 
@@ -575,7 +662,7 @@ export async function getOrderPricing(req, res) {
       voucherEligibility,
     });
   } catch (error) {
-    console.error("Calculate pricing error:", error);
+    console.log("Calculate pricing error:", error);
     return sendResponse(res, 500, false, "Failed to calculate pricing");
   }
 }
@@ -594,7 +681,14 @@ export async function getOrderPricing(req, res) {
 export async function getMyOrders(req, res) {
   try {
     const userId = req.user._id;
-    const { status, menuType, dateFrom, dateTo, page = 1, limit = 20 } = req.query;
+    const {
+      status,
+      menuType,
+      dateFrom,
+      dateTo,
+      page = 1,
+      limit = 20,
+    } = req.query;
 
     const query = { userId };
 
@@ -618,8 +712,17 @@ export async function getMyOrders(req, res) {
     ]);
 
     // Get active orders
-    const activeStatuses = ["PLACED", "ACCEPTED", "PREPARING", "READY", "PICKED_UP", "OUT_FOR_DELIVERY"];
-    const activeOrders = orders.filter((o) => activeStatuses.includes(o.status));
+    const activeStatuses = [
+      "PLACED",
+      "ACCEPTED",
+      "PREPARING",
+      "READY",
+      "PICKED_UP",
+      "OUT_FOR_DELIVERY",
+    ];
+    const activeOrders = orders.filter((o) =>
+      activeStatuses.includes(o.status)
+    );
 
     // Add computed fields
     const ordersWithMeta = orders.map((order) => ({
@@ -641,7 +744,7 @@ export async function getMyOrders(req, res) {
       },
     });
   } catch (error) {
-    console.error("Get my orders error:", error);
+    console.log("Get my orders error:", error);
     return sendResponse(res, 500, false, "Failed to retrieve orders");
   }
 }
@@ -685,9 +788,11 @@ export async function getOrderById(req, res) {
 
     // Access control
     const isOwner = order.userId.toString() === user._id.toString();
-    const isKitchenStaff = user.role === "KITCHEN_STAFF" &&
+    const isKitchenStaff =
+      user.role === "KITCHEN_STAFF" &&
       user.kitchenId?.toString() === order.kitchenId._id.toString();
-    const isDriver = user.role === "DRIVER" &&
+    const isDriver =
+      user.role === "DRIVER" &&
       order.driverId?._id?.toString() === user._id.toString();
     const isAdmin = user.role === "ADMIN";
 
@@ -713,13 +818,15 @@ export async function getOrderById(req, res) {
         estimatedTime: order.estimatedDeliveryTime,
       },
       vouchersUsed,
-      couponApplied: order.discount?.couponCode ? {
-        code: order.discount.couponCode,
-        discount: order.discount.discountAmount,
-      } : null,
+      couponApplied: order.discount?.couponCode
+        ? {
+            code: order.discount.couponCode,
+            discount: order.discount.discountAmount,
+          }
+        : null,
     });
   } catch (error) {
-    console.error("Get order by ID error:", error);
+    console.log("Get order by ID error:", error);
     return sendResponse(res, 500, false, "Failed to retrieve order");
   }
 }
@@ -746,16 +853,20 @@ export async function trackOrder(req, res) {
       status: order.status,
       statusMessage: getStatusDisplay(order.status),
       timeline: order.statusTimeline,
-      driver: order.driverId ? {
-        name: order.driverId.name,
-        phone: order.driverId.phone,
-      } : null,
+      driver: order.driverId
+        ? {
+            name: order.driverId.name,
+            phone: order.driverId.phone,
+          }
+        : null,
       estimatedDelivery: order.estimatedDeliveryTime,
       canContactDriver: order.status === "OUT_FOR_DELIVERY" && order.driverId,
-      canContactKitchen: ["PLACED", "ACCEPTED", "PREPARING"].includes(order.status),
+      canContactKitchen: ["PLACED", "ACCEPTED", "PREPARING"].includes(
+        order.status
+      ),
     });
   } catch (error) {
-    console.error("Track order error:", error);
+    console.log("Track order error:", error);
     return sendResponse(res, 500, false, "Failed to track order");
   }
 }
@@ -794,7 +905,7 @@ export async function rateOrder(req, res) {
 
     return sendResponse(res, 200, true, "Order rated successfully", { order });
   } catch (error) {
-    console.error("Rate order error:", error);
+    console.log("Rate order error:", error);
     return sendResponse(res, 500, false, "Failed to rate order");
   }
 }
@@ -831,7 +942,11 @@ export async function customerCancelOrder(req, res) {
     // Update order status
     order.cancellationReason = reason || "Cancelled by customer";
     order.cancelledBy = "CUSTOMER";
-    await order.updateStatus("CANCELLED", userId, reason || "Cancelled by customer");
+    await order.updateStatus(
+      "CANCELLED",
+      userId,
+      reason || "Cancelled by customer"
+    );
 
     // Restore vouchers only if eligibility says so
     // (voucher orders: only before meal window cutoff; non-voucher: no vouchers to restore)
@@ -848,7 +963,9 @@ export async function customerCancelOrder(req, res) {
         vouchersRestored = restoreResult.count;
       } else {
         // After cutoff - vouchers NOT restored
-        voucherWarning = eligibility.warning || "Vouchers used for this order will not be restored as the meal window has closed.";
+        voucherWarning =
+          eligibility.warning ||
+          "Vouchers used for this order will not be restored as the meal window has closed.";
       }
     }
 
@@ -877,7 +994,7 @@ export async function customerCancelOrder(req, res) {
       message,
     });
   } catch (error) {
-    console.error("Customer cancel order error:", error);
+    console.log("Customer cancel order error:", error);
     return sendResponse(res, 500, false, "Failed to cancel order");
   }
 }
@@ -947,7 +1064,7 @@ export async function getKitchenOrders(req, res) {
       },
     });
   } catch (error) {
-    console.error("Get kitchen orders error:", error);
+    console.log("Get kitchen orders error:", error);
     return sendResponse(res, 500, false, "Failed to retrieve kitchen orders");
   }
 }
@@ -970,11 +1087,21 @@ export async function acceptOrder(req, res) {
     }
 
     if (order.kitchenId.toString() !== kitchenId.toString()) {
-      return sendResponse(res, 403, false, "Order does not belong to your kitchen");
+      return sendResponse(
+        res,
+        403,
+        false,
+        "Order does not belong to your kitchen"
+      );
     }
 
     if (order.status !== "PLACED") {
-      return sendResponse(res, 400, false, "Can only accept orders with PLACED status");
+      return sendResponse(
+        res,
+        400,
+        false,
+        "Can only accept orders with PLACED status"
+      );
     }
 
     await order.updateStatus("ACCEPTED", staffId, "Order accepted by kitchen");
@@ -986,7 +1113,7 @@ export async function acceptOrder(req, res) {
 
     return sendResponse(res, 200, true, "Order accepted", { order });
   } catch (error) {
-    console.error("Accept order error:", error);
+    console.log("Accept order error:", error);
     return sendResponse(res, 500, false, "Failed to accept order");
   }
 }
@@ -1009,11 +1136,21 @@ export async function rejectOrder(req, res) {
     }
 
     if (order.kitchenId.toString() !== kitchenId.toString()) {
-      return sendResponse(res, 403, false, "Order does not belong to your kitchen");
+      return sendResponse(
+        res,
+        403,
+        false,
+        "Order does not belong to your kitchen"
+      );
     }
 
     if (order.status !== "PLACED") {
-      return sendResponse(res, 400, false, "Can only reject orders with PLACED status");
+      return sendResponse(
+        res,
+        400,
+        false,
+        "Can only reject orders with PLACED status"
+      );
     }
 
     // Update order status
@@ -1043,7 +1180,7 @@ export async function rejectOrder(req, res) {
       vouchersRestored,
     });
   } catch (error) {
-    console.error("Reject order error:", error);
+    console.log("Reject order error:", error);
     return sendResponse(res, 500, false, "Failed to reject order");
   }
 }
@@ -1066,11 +1203,21 @@ export async function cancelOrder(req, res) {
     }
 
     if (order.kitchenId.toString() !== kitchenId.toString()) {
-      return sendResponse(res, 403, false, "Order does not belong to your kitchen");
+      return sendResponse(
+        res,
+        403,
+        false,
+        "Order does not belong to your kitchen"
+      );
     }
 
     if (!["ACCEPTED", "PREPARING"].includes(order.status)) {
-      return sendResponse(res, 400, false, "Can only cancel orders that are ACCEPTED or PREPARING");
+      return sendResponse(
+        res,
+        400,
+        false,
+        "Can only cancel orders that are ACCEPTED or PREPARING"
+      );
     }
 
     // Update order status
@@ -1101,7 +1248,7 @@ export async function cancelOrder(req, res) {
       vouchersRestored,
     });
   } catch (error) {
-    console.error("Cancel order error:", error);
+    console.log("Cancel order error:", error);
     return sendResponse(res, 500, false, "Failed to cancel order");
   }
 }
@@ -1124,7 +1271,12 @@ export async function updateOrderStatus(req, res) {
     }
 
     if (order.kitchenId.toString() !== kitchenId.toString()) {
-      return sendResponse(res, 403, false, "Order does not belong to your kitchen");
+      return sendResponse(
+        res,
+        403,
+        false,
+        "Order does not belong to your kitchen"
+      );
     }
 
     // Validate status transition
@@ -1142,7 +1294,7 @@ export async function updateOrderStatus(req, res) {
 
     return sendResponse(res, 200, true, "Order status updated", { order });
   } catch (error) {
-    console.error("Update order status error:", error);
+    console.log("Update order status error:", error);
     return sendResponse(res, 500, false, "Failed to update order status");
   }
 }
@@ -1171,7 +1323,7 @@ export async function getDriverOrders(req, res) {
 
     return sendResponse(res, 200, true, "Driver orders retrieved", { orders });
   } catch (error) {
-    console.error("Get driver orders error:", error);
+    console.log("Get driver orders error:", error);
     return sendResponse(res, 500, false, "Failed to retrieve driver orders");
   }
 }
@@ -1220,7 +1372,7 @@ export async function updateDeliveryStatus(req, res) {
 
     return sendResponse(res, 200, true, "Delivery status updated", { order });
   } catch (error) {
-    console.error("Update delivery status error:", error);
+    console.log("Update delivery status error:", error);
     return sendResponse(res, 500, false, "Failed to update delivery status");
   }
 }
@@ -1238,7 +1390,17 @@ export async function updateDeliveryStatus(req, res) {
  */
 export async function getAllOrders(req, res) {
   try {
-    const { userId, kitchenId, zoneId, status, menuType, dateFrom, dateTo, page = 1, limit = 20 } = req.query;
+    const {
+      userId,
+      kitchenId,
+      zoneId,
+      status,
+      menuType,
+      dateFrom,
+      dateTo,
+      page = 1,
+      limit = 20,
+    } = req.query;
 
     const query = {};
 
@@ -1276,7 +1438,7 @@ export async function getAllOrders(req, res) {
       },
     });
   } catch (error) {
-    console.error("Get all orders error:", error);
+    console.log("Get all orders error:", error);
     return sendResponse(res, 500, false, "Failed to retrieve orders");
   }
 }
@@ -1289,7 +1451,11 @@ export async function getAllOrders(req, res) {
 export async function adminCancelOrder(req, res) {
   try {
     const { id } = req.params;
-    const { reason, issueRefund = true, restoreVouchers: shouldRestoreVouchers = true } = req.body;
+    const {
+      reason,
+      issueRefund = true,
+      restoreVouchers: shouldRestoreVouchers = true,
+    } = req.body;
     const adminId = req.user._id;
 
     const order = await Order.findById(id);
@@ -1298,7 +1464,12 @@ export async function adminCancelOrder(req, res) {
     }
 
     if (!order.canBeCancelled()) {
-      return sendResponse(res, 400, false, "Order cannot be cancelled in current status");
+      return sendResponse(
+        res,
+        400,
+        false,
+        "Order cannot be cancelled in current status"
+      );
     }
 
     // Update order status
@@ -1339,7 +1510,7 @@ export async function adminCancelOrder(req, res) {
       vouchersRestored,
     });
   } catch (error) {
-    console.error("Admin cancel order error:", error);
+    console.log("Admin cancel order error:", error);
     return sendResponse(res, 500, false, "Failed to cancel order");
   }
 }
@@ -1413,7 +1584,7 @@ export async function getOrderStats(req, res) {
       byMenuType: menuTypeCounts,
     });
   } catch (error) {
-    console.error("Get order stats error:", error);
+    console.log("Get order stats error:", error);
     return sendResponse(res, 500, false, "Failed to retrieve order statistics");
   }
 }

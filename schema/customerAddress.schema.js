@@ -129,14 +129,13 @@ customerAddressSchema.index({ pincode: 1 });
 customerAddressSchema.index({ userId: 1, isDeleted: 1 });
 
 // Ensure only one default address per user
-customerAddressSchema.pre("save", async function (next) {
+customerAddressSchema.pre("save", async function () {
   if (this.isDefault && this.isModified("isDefault")) {
     await this.constructor.updateMany(
       { userId: this.userId, _id: { $ne: this._id } },
       { isDefault: false }
     );
   }
-  next();
 });
 
 // Get full address string

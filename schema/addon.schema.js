@@ -108,11 +108,10 @@ addonSchema.index({ status: 1 });
 addonSchema.index({ displayOrder: 1 });
 
 // Validate maxQuantity >= minQuantity
-addonSchema.pre("save", function (next) {
+addonSchema.pre("save", async function () {
   if (this.maxQuantity < this.minQuantity) {
-    return next(new Error("Max quantity must be >= min quantity"));
+    throw new Error("Max quantity must be >= min quantity");
   }
-  next();
 });
 
 // Check if addon is orderable

@@ -294,14 +294,13 @@ orderSchema.index({ menuType: 1, status: 1 }); // For filtered queries by menu t
 orderSchema.index({ paymentStatus: 1 }); // For refund queries
 
 // Validate mealWindow for MEAL_MENU
-orderSchema.pre("save", function (next) {
+orderSchema.pre("save", async function () {
   if (this.menuType === "MEAL_MENU" && !this.mealWindow) {
-    return next(new Error("Meal window is required for Meal Menu orders"));
+    throw new Error("Meal window is required for Meal Menu orders");
   }
   if (this.menuType === "ON_DEMAND_MENU" && this.voucherUsage?.voucherCount > 0) {
-    return next(new Error("Vouchers cannot be used for On-Demand Menu orders"));
+    throw new Error("Vouchers cannot be used for On-Demand Menu orders");
   }
-  next();
 });
 
 // Generate order number

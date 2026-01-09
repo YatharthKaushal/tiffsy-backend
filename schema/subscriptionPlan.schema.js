@@ -148,14 +148,13 @@ subscriptionPlanSchema.index({ price: 1 });
 subscriptionPlanSchema.index({ displayOrder: 1 });
 
 // Validate originalPrice > price if set
-subscriptionPlanSchema.pre("save", function (next) {
+subscriptionPlanSchema.pre("save", async function () {
   if (this.originalPrice && this.originalPrice <= this.price) {
-    return next(new Error("Original price must be greater than discounted price"));
+    throw new Error("Original price must be greater than discounted price");
   }
   if (this.validTill && this.validFrom && this.validTill <= this.validFrom) {
-    return next(new Error("Valid till must be after valid from"));
+    throw new Error("Valid till must be after valid from");
   }
-  next();
 });
 
 // Check if plan is purchasable

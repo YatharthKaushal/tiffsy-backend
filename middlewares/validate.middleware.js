@@ -43,7 +43,17 @@ export const validateQuery = (schema) => {
       return sendResponse(res, 400, "Validation failed", null, errorMessage);
     }
 
-    req.query = value;
+    // Express 5.x: req.query is read-only, store validated values separately
+    req.validatedQuery = value;
+    // Also try to update in-place for backward compatibility
+    try {
+      for (const key in req.query) {
+        delete req.query[key];
+      }
+      Object.assign(req.query, value);
+    } catch {
+      // If mutation fails, controllers should use req.validatedQuery
+    }
     next();
   };
 };
@@ -66,7 +76,17 @@ export const validateParams = (schema) => {
       return sendResponse(res, 400, "Validation failed", null, errorMessage);
     }
 
-    req.params = value;
+    // Express 5.x: req.params is read-only, store validated values separately
+    req.validatedParams = value;
+    // Also try to update in-place for backward compatibility
+    try {
+      for (const key in req.params) {
+        delete req.params[key];
+      }
+      Object.assign(req.params, value);
+    } catch {
+      // If mutation fails, controllers should use req.validatedParams
+    }
     next();
   };
 };

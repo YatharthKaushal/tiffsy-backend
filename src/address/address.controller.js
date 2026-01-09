@@ -15,15 +15,20 @@ import { sendResponse } from "../../utils/response.utils.js";
  * @returns {Object} Serviceability info
  */
 const checkPincodeServiceability = async (pincode) => {
+  console.log(`> Checking serviceability for pincode: ${pincode}`);
+
   const zone = await Zone.findOne({ pincode }).select(
     "_id name city status orderingEnabled"
   );
 
   if (!zone) {
+    console.log(`> Pincode ${pincode}: Zone not found`);
     return { isServiceable: false, zoneId: null, zone: null };
   }
 
   const isServiceable = zone.status === "ACTIVE" && zone.orderingEnabled;
+  console.log(`> Pincode ${pincode}: Zone found - ${zone.name}, serviceable: ${isServiceable}`);
+
   return {
     isServiceable,
     zoneId: zone._id,
@@ -58,6 +63,8 @@ export const createAddress = async (req, res) => {
       isDefault,
     } = req.body;
 
+    console.log(`> Create address request - userId: ${userId}, label: ${label}, pincode: ${pincode}`);
+
     // Check serviceability
     const serviceability = await checkPincodeServiceability(pincode);
 
@@ -66,10 +73,12 @@ export const createAddress = async (req, res) => {
       userId,
       isDeleted: false,
     });
+    console.log(`> User ${userId} has ${existingCount} existing addresses`);
 
     // If setting as default or first address, unset other defaults
     const shouldBeDefault = isDefault || existingCount === 0;
-    if (shouldBeDefault) {
+    if (shouldBeDefault && existingCount > 0) {
+      console.log(`> Unsetting default for other addresses`);
       await CustomerAddress.updateMany(
         { userId, isDeleted: false },
         { $set: { isDefault: false } }
@@ -96,13 +105,16 @@ export const createAddress = async (req, res) => {
 
     await address.save();
 
+    console.log(`> Address created successfully - id: ${address._id}, serviceable: ${serviceability.isServiceable}`);
+
     return sendResponse(res, 201, "Address created successfully", {
       address: address.toJSON(),
       isServiceable: serviceability.isServiceable,
       zone: serviceability.zone,
     });
   } catch (error) {
-    console.log("> Create address error:", error);
+    console.error("> Create address error:", error.message);
+    console.error("> Create address stack:", error.stack);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -117,6 +129,8 @@ export const getAddresses = async (req, res) => {
     const userId = req.user._id;
     const { includeDeleted } = req.query;
 
+    console.log(`> Get addresses request - userId: ${userId}, includeDeleted: ${includeDeleted}`);
+
     const filter = { userId };
     if (includeDeleted !== "true") {
       filter.isDeleted = false;
@@ -128,12 +142,15 @@ export const getAddresses = async (req, res) => {
 
     const defaultAddress = addresses.find((a) => a.isDefault);
 
+    console.log(`> Found ${addresses.length} addresses for user ${userId}`);
+
     return sendResponse(res, 200, "Addresses retrieved", {
       addresses,
       defaultAddressId: defaultAddress?._id || null,
     });
   } catch (error) {
-    console.log("> Get addresses error:", error);
+    console.error("> Get addresses error:", error.message);
+    console.error("> Get addresses stack:", error.stack);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -148,17 +165,21 @@ export const getAddressById = async (req, res) => {
     const userId = req.user._id;
     const { id } = req.params;
 
+    console.log(`> Get address by ID request - userId: ${userId}, addressId: ${id}`);
+
     const address = await CustomerAddress.findById(id).populate(
       "zoneId",
       "name city status orderingEnabled"
     );
 
     if (!address || address.isDeleted) {
+      console.log(`> Address ${id} not found or deleted`);
       return sendResponse(res, 404, "Address not found");
     }
 
     // Ownership check
     if (address.userId.toString() !== userId.toString()) {
+      console.log(`> Access denied - address belongs to different user`);
       return sendResponse(res, 403, "Access denied");
     }
 
@@ -172,6 +193,8 @@ export const getAddressById = async (req, res) => {
       });
     }
 
+    console.log(`> Address ${id} retrieved - serviceable: ${address.isServiceable}, kitchens: ${availableKitchens}`);
+
     return sendResponse(res, 200, "Address retrieved", {
       address,
       zone: address.zoneId,
@@ -179,7 +202,8 @@ export const getAddressById = async (req, res) => {
       availableKitchens,
     });
   } catch (error) {
-    console.log("> Get address by ID error:", error);
+    console.error("> Get address by ID error:", error.message);
+    console.error("> Get address by ID stack:", error.stack);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -195,18 +219,24 @@ export const updateAddress = async (req, res) => {
     const { id } = req.params;
     const updates = req.body;
 
+    console.log(`> Update address request - userId: ${userId}, addressId: ${id}`);
+    console.log(`> Update fields: ${Object.keys(updates).join(", ")}`);
+
     const address = await CustomerAddress.findById(id);
 
     if (!address || address.isDeleted) {
+      console.log(`> Address ${id} not found or deleted`);
       return sendResponse(res, 404, "Address not found");
     }
 
     if (address.userId.toString() !== userId.toString()) {
+      console.log(`> Access denied - address belongs to different user`);
       return sendResponse(res, 403, "Access denied");
     }
 
     // If pincode changed, re-check serviceability
     if (updates.pincode && updates.pincode !== address.pincode) {
+      console.log(`> Pincode changed from ${address.pincode} to ${updates.pincode}`);
       const serviceability = await checkPincodeServiceability(updates.pincode);
       address.zoneId = serviceability.zoneId;
       address.isServiceable = serviceability.isServiceable;
@@ -214,6 +244,7 @@ export const updateAddress = async (req, res) => {
 
     // If setting as default
     if (updates.isDefault === true) {
+      console.log(`> Setting address ${id} as default`);
       await CustomerAddress.updateMany(
         { userId, _id: { $ne: id }, isDeleted: false },
         { $set: { isDefault: false } }
@@ -250,13 +281,16 @@ export const updateAddress = async (req, res) => {
       zone = await Zone.findById(address.zoneId).select("name city");
     }
 
+    console.log(`> Address ${id} updated successfully`);
+
     return sendResponse(res, 200, "Address updated successfully", {
       address: address.toJSON(),
       isServiceable: address.isServiceable,
       zone,
     });
   } catch (error) {
-    console.log("> Update address error:", error);
+    console.error("> Update address error:", error.message);
+    console.error("> Update address stack:", error.stack);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -271,13 +305,17 @@ export const deleteAddress = async (req, res) => {
     const userId = req.user._id;
     const { id } = req.params;
 
+    console.log(`> Delete address request - userId: ${userId}, addressId: ${id}`);
+
     const address = await CustomerAddress.findById(id);
 
     if (!address || address.isDeleted) {
+      console.log(`> Address ${id} not found or already deleted`);
       return sendResponse(res, 404, "Address not found");
     }
 
     if (address.userId.toString() !== userId.toString()) {
+      console.log(`> Access denied - address belongs to different user`);
       return sendResponse(res, 403, "Access denied");
     }
 
@@ -291,6 +329,7 @@ export const deleteAddress = async (req, res) => {
     });
 
     if (pendingOrders > 0) {
+      console.log(`> Cannot delete address ${id} - has ${pendingOrders} pending orders`);
       return sendResponse(
         res,
         400,
@@ -305,6 +344,8 @@ export const deleteAddress = async (req, res) => {
     address.isDefault = false;
     await address.save();
 
+    console.log(`> Address ${id} soft deleted, wasDefault: ${wasDefault}`);
+
     // If was default, set another as default
     if (wasDefault) {
       const anotherAddress = await CustomerAddress.findOne({
@@ -315,12 +356,14 @@ export const deleteAddress = async (req, res) => {
       if (anotherAddress) {
         anotherAddress.isDefault = true;
         await anotherAddress.save();
+        console.log(`> Set address ${anotherAddress._id} as new default`);
       }
     }
 
     return sendResponse(res, 200, "Address deleted successfully");
   } catch (error) {
-    console.log("> Delete address error:", error);
+    console.error("> Delete address error:", error.message);
+    console.error("> Delete address stack:", error.stack);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -335,13 +378,17 @@ export const setDefaultAddress = async (req, res) => {
     const userId = req.user._id;
     const { id } = req.params;
 
+    console.log(`> Set default address request - userId: ${userId}, addressId: ${id}`);
+
     const address = await CustomerAddress.findById(id);
 
     if (!address || address.isDeleted) {
+      console.log(`> Address ${id} not found or deleted`);
       return sendResponse(res, 404, "Address not found");
     }
 
     if (address.userId.toString() !== userId.toString()) {
+      console.log(`> Access denied - address belongs to different user`);
       return sendResponse(res, 403, "Access denied");
     }
 
@@ -355,11 +402,14 @@ export const setDefaultAddress = async (req, res) => {
     address.isDefault = true;
     await address.save();
 
+    console.log(`> Address ${id} set as default for user ${userId}`);
+
     return sendResponse(res, 200, "Default address updated", {
       defaultAddressId: address._id,
     });
   } catch (error) {
-    console.log("> Set default address error:", error);
+    console.error("> Set default address error:", error.message);
+    console.error("> Set default address stack:", error.stack);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -373,8 +423,11 @@ export const checkServiceability = async (req, res) => {
   try {
     const { pincode } = req.query;
 
+    console.log(`> Check serviceability request - pincode: ${pincode}`);
+
     // Validate pincode format
     if (!/^\d{6}$/.test(pincode)) {
+      console.log(`> Invalid pincode format: ${pincode}`);
       return sendResponse(res, 400, "Invalid pincode format");
     }
 
@@ -387,7 +440,10 @@ export const checkServiceability = async (req, res) => {
         status: "ACTIVE",
         isAcceptingOrders: true,
       });
+      console.log(`> Found ${kitchenCount} active kitchens for zone ${serviceability.zone?.name}`);
     }
+
+    console.log(`> Serviceability check complete - pincode: ${pincode}, serviceable: ${serviceability.isServiceable}`);
 
     return sendResponse(res, 200, "Serviceability checked", {
       pincode,
@@ -399,7 +455,8 @@ export const checkServiceability = async (req, res) => {
         : "Sorry, we don't deliver to this area yet",
     });
   } catch (error) {
-    console.log("> Check serviceability error:", error);
+    console.error("> Check serviceability error:", error.message);
+    console.error("> Check serviceability stack:", error.stack);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -415,17 +472,22 @@ export const getServiceableKitchens = async (req, res) => {
     const { id } = req.params;
     const { menuType } = req.query;
 
+    console.log(`> Get serviceable kitchens request - userId: ${userId}, addressId: ${id}, menuType: ${menuType || "all"}`);
+
     const address = await CustomerAddress.findById(id);
 
     if (!address || address.isDeleted) {
+      console.log(`> Address ${id} not found or deleted`);
       return sendResponse(res, 404, "Address not found");
     }
 
     if (address.userId.toString() !== userId.toString()) {
+      console.log(`> Access denied - address belongs to different user`);
       return sendResponse(res, 403, "Access denied");
     }
 
     if (!address.isServiceable || !address.zoneId) {
+      console.log(`> Address ${id} is not serviceable`);
       return sendResponse(res, 200, "Kitchens retrieved", {
         kitchens: [],
         count: 0,
@@ -444,12 +506,15 @@ export const getServiceableKitchens = async (req, res) => {
       .select("name code type premiumFlag gourmetFlag logo cuisineTypes averageRating")
       .sort({ type: 1, averageRating: -1 });
 
+    console.log(`> Found ${kitchens.length} kitchens serving address ${id}`);
+
     return sendResponse(res, 200, "Kitchens retrieved", {
       kitchens,
       count: kitchens.length,
     });
   } catch (error) {
-    console.log("> Get serviceable kitchens error:", error);
+    console.error("> Get serviceable kitchens error:", error.message);
+    console.error("> Get serviceable kitchens stack:", error.stack);
     return sendResponse(res, 500, "Server error");
   }
 };

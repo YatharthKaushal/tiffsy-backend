@@ -199,14 +199,13 @@ couponSchema.index({ status: 1, validFrom: 1, validTill: 1 });
 couponSchema.index({ displayOrder: 1 });
 
 // Validate discount value for percentage
-couponSchema.pre("save", function (next) {
+couponSchema.pre("save", async function () {
   if (this.discountType === "PERCENTAGE" && this.discountValue > 100) {
-    return next(new Error("Percentage discount cannot exceed 100%"));
+    throw new Error("Percentage discount cannot exceed 100%");
   }
   if (this.validTill <= this.validFrom) {
-    return next(new Error("Valid till must be after valid from"));
+    throw new Error("Valid till must be after valid from");
   }
-  next();
 });
 
 // Check if coupon is valid for use

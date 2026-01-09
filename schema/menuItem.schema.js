@@ -201,14 +201,14 @@ menuItemSchema.index({ dietaryType: 1 });
 menuItemSchema.index({ displayOrder: 1 });
 
 // Validate mealWindow for MEAL_MENU
-menuItemSchema.pre("save", async function (next) {
+menuItemSchema.pre("save", async function () {
   if (this.menuType === "MEAL_MENU" && !this.mealWindow) {
-    return next(new Error("Meal window is required for Meal Menu items"));
+    throw new Error("Meal window is required for Meal Menu items");
   }
 
   // Validate discountedPrice < price
   if (this.discountedPrice && this.discountedPrice >= this.price) {
-    return next(new Error("Discounted price must be less than original price"));
+    throw new Error("Discounted price must be less than original price");
   }
 
   // For MEAL_MENU, ensure only 1 item per mealWindow per kitchen
@@ -220,13 +220,9 @@ menuItemSchema.pre("save", async function (next) {
       status: { $ne: "INACTIVE" },
     });
     if (existing) {
-      return next(
-        new Error(`Kitchen already has a ${this.mealWindow} item in Meal Menu`)
-      );
+      throw new Error(`Kitchen already has a ${this.mealWindow} item in Meal Menu`);
     }
   }
-
-  next();
 });
 
 // Get effective price

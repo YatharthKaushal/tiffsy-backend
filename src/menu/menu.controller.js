@@ -624,7 +624,7 @@ export const getKitchenMenu = async (req, res) => {
 
     // Verify kitchen exists and is active
     const kitchen = await Kitchen.findById(kitchenId).select(
-      "_id name type logo coverImage cuisineTypes averageRating"
+      "_id name type logo coverImage cuisineTypes averageRating status"
     );
 
     if (!kitchen) {

@@ -9,6 +9,7 @@ import Coupon from "../../schema/coupon.schema.js";
 import Refund from "../../schema/refund.schema.js";
 import AuditLog from "../../schema/auditLog.schema.js";
 import { sendResponse } from "../../utils/response.utils.js";
+import { createLogger } from "../../utils/logger.utils.js";
 import {
   checkCutoffTime,
   getFeesConfig,
@@ -19,6 +20,9 @@ import {
   restoreVouchersForOrder,
   getAvailableVoucherCount,
 } from "../../services/voucher.service.js";
+
+// Create logger instance for this controller
+const log = createLogger("OrderController");
 
 /**
  * ============================================================================
@@ -341,6 +345,7 @@ function getNextValidStatuses(currentStatus) {
  * @access Authenticated Customer
  */
 export async function createOrder(req, res) {
+  const startTime = Date.now();
   try {
     const userId = req.user._id;
     const {
@@ -356,6 +361,17 @@ export async function createOrder(req, res) {
       paymentMethod,
     } = req.body;
 
+    log.request(req, "createOrder");
+    log.info("createOrder", "Starting order creation", {
+      userId: userId.toString(),
+      kitchenId,
+      menuType,
+      mealWindow,
+      itemCount: items?.length,
+      voucherCount,
+      couponCode: couponCode || "none",
+    });
+
     // Validate delivery address
     const address = await CustomerAddress.findOne({
       _id: deliveryAddressId,
@@ -363,6 +379,7 @@ export async function createOrder(req, res) {
       isDeleted: false,
     });
     if (!address) {
+      log.warn("createOrder", "Address not found", { deliveryAddressId, userId: userId.toString() });
       return sendResponse(
         res,
         404,
@@ -372,6 +389,7 @@ export async function createOrder(req, res) {
     }
 
     if (!address.isServiceable) {
+      log.warn("createOrder", "Address not serviceable", { deliveryAddressId, zoneId: address.zoneId?.toString() });
       return sendResponse(
         res,
         400,
@@ -383,14 +401,17 @@ export async function createOrder(req, res) {
     // Validate kitchen
     const kitchen = await Kitchen.findById(kitchenId);
     if (!kitchen) {
+      log.warn("createOrder", "Kitchen not found", { kitchenId });
       return sendResponse(res, 404, false, "Kitchen not found");
     }
 
     if (kitchen.status !== "ACTIVE") {
+      log.warn("createOrder", "Kitchen not active", { kitchenId, status: kitchen.status });
       return sendResponse(res, 400, false, "Kitchen is not active");
     }
 
     if (!kitchen.isAcceptingOrders) {
+      log.warn("createOrder", "Kitchen not accepting orders", { kitchenId });
       return sendResponse(res, 400, false, "Kitchen is not accepting orders");
     }
 
@@ -400,8 +421,11 @@ export async function createOrder(req, res) {
         (z) => z.toString() === address.zoneId.toString()
       )
     ) {
+      log.warn("createOrder", "Kitchen does not serve zone", { kitchenId, zoneId: address.zoneId?.toString() });
       return sendResponse(res, 400, false, "Kitchen does not serve your area");
     }
+
+    log.debug("createOrder", "Validation passed", { kitchenId, zoneId: address.zoneId?.toString() });
 
     // Validate order items
     const itemValidation = await validateOrderItems(
@@ -411,8 +435,11 @@ export async function createOrder(req, res) {
       mealWindow
     );
     if (!itemValidation.valid) {
+      log.warn("createOrder", "Item validation failed", { error: itemValidation.error });
       return sendResponse(res, 400, false, itemValidation.error);
     }
+
+    log.debug("createOrder", "Items validated", { itemCount: itemValidation.validatedItems.length });
 
     // Check cutoff time for MEAL_MENU voucher orders
     if (
@@ -420,6 +447,7 @@ export async function createOrder(req, res) {
       voucherCount > 0 &&
       isCutoffPassed(mealWindow)
     ) {
+      log.warn("createOrder", "Voucher cutoff passed", { mealWindow, voucherCount });
       return sendResponse(
         res,
         400,
@@ -432,6 +460,8 @@ export async function createOrder(req, res) {
     // Using MongoDB transactions for atomic operation
     let redeemedVouchers = [];
     if (menuType === "MEAL_MENU" && voucherCount > 0) {
+      log.info("createOrder", "Redeeming vouchers", { userId: userId.toString(), voucherCount, mealWindow });
+
       // Generate order number first so we can associate vouchers with order
       const orderNumber = Order.generateOrderNumber();
 
@@ -443,14 +473,17 @@ export async function createOrder(req, res) {
         kitchenId
       );
       if (!voucherResult.success) {
+        log.warn("createOrder", "Voucher redemption failed", { error: voucherResult.error });
         return sendResponse(res, 400, false, voucherResult.error);
       }
       redeemedVouchers = voucherResult.vouchers;
+      log.info("createOrder", "Vouchers redeemed", { count: redeemedVouchers.length });
     }
 
     // Handle coupon validation (ON_DEMAND_MENU only)
     let couponDiscount = null;
     if (menuType === "ON_DEMAND_MENU" && couponCode) {
+      log.debug("createOrder", "Validating coupon", { couponCode });
       const coupon = await Coupon.findOne({ code: couponCode.toUpperCase() });
       if (coupon && coupon.isValid()) {
         const subtotal = itemValidation.validatedItems.reduce((sum, item) => {
@@ -471,7 +504,12 @@ export async function createOrder(req, res) {
           };
           // Increment coupon usage
           await coupon.incrementUsage();
+          log.info("createOrder", "Coupon applied", { couponCode: coupon.code, discount: couponDiscount.discountAmount });
+        } else {
+          log.debug("createOrder", "Coupon min order not met", { minOrderValue: coupon.minOrderValue, subtotal });
         }
+      } else {
+        log.debug("createOrder", "Coupon invalid or not found", { couponCode });
       }
     }
 
@@ -544,6 +582,22 @@ export async function createOrder(req, res) {
 
     await order.save();
 
+    const duration = Date.now() - startTime;
+    log.event("ORDER_CREATED", "New order placed successfully", {
+      orderId: order._id.toString(),
+      orderNumber: order.orderNumber,
+      userId: userId.toString(),
+      kitchenId,
+      menuType,
+      mealWindow,
+      grandTotal: pricing.grandTotal,
+      amountToPay: pricing.amountToPay,
+      vouchersUsed: redeemedVouchers.length,
+      couponApplied: couponDiscount?.couponCode || null,
+      duration: `${duration}ms`,
+    });
+    log.response("createOrder", 201, true, duration);
+
     return sendResponse(res, 201, true, "Order placed successfully", {
       order,
       vouchersUsed: redeemedVouchers.length,
@@ -551,7 +605,8 @@ export async function createOrder(req, res) {
       paymentRequired: pricing.amountToPay > 0,
     });
   } catch (error) {
-    console.log("Create order error:", error);
+    const duration = Date.now() - startTime;
+    log.error("createOrder", "Failed to place order", { error, duration: `${duration}ms` });
     return sendResponse(res, 500, false, "Failed to place order");
   }
 }
@@ -562,6 +617,7 @@ export async function createOrder(req, res) {
  * @access Authenticated Customer
  */
 export async function getOrderPricing(req, res) {
+  const startTime = Date.now();
   try {
     const userId = req.user._id;
     const {
@@ -573,6 +629,9 @@ export async function getOrderPricing(req, res) {
       couponCode,
       deliveryAddressId,
     } = req.body;
+
+    log.request(req, "getOrderPricing");
+    log.debug("getOrderPricing", "Calculating pricing", { kitchenId, menuType, itemCount: items?.length });
 
     // Validate items
     const itemValidation = await validateOrderItems(
@@ -643,6 +702,9 @@ export async function getOrderPricing(req, res) {
       menuType
     );
 
+    const duration = Date.now() - startTime;
+    log.response("getOrderPricing", 200, true, duration);
+
     return sendResponse(res, 200, true, "Pricing calculated", {
       breakdown: {
         items: itemValidation.validatedItems.map((item) => ({
@@ -662,7 +724,8 @@ export async function getOrderPricing(req, res) {
       voucherEligibility,
     });
   } catch (error) {
-    console.log("Calculate pricing error:", error);
+    const duration = Date.now() - startTime;
+    log.error("getOrderPricing", "Failed to calculate pricing", { error, duration: `${duration}ms` });
     return sendResponse(res, 500, false, "Failed to calculate pricing");
   }
 }
@@ -1075,18 +1138,23 @@ export async function getKitchenOrders(req, res) {
  * @access Kitchen Staff
  */
 export async function acceptOrder(req, res) {
+  const startTime = Date.now();
   try {
     const { id } = req.params;
     const { estimatedPrepTime } = req.body;
     const kitchenId = req.user.kitchenId;
     const staffId = req.user._id;
 
+    log.request(req, "acceptOrder");
+
     const order = await Order.findById(id);
     if (!order) {
+      log.warn("acceptOrder", "Order not found", { orderId: id });
       return sendResponse(res, 404, false, "Order not found");
     }
 
     if (order.kitchenId.toString() !== kitchenId.toString()) {
+      log.warn("acceptOrder", "Kitchen mismatch", { orderId: id, orderKitchen: order.kitchenId.toString(), staffKitchen: kitchenId.toString() });
       return sendResponse(
         res,
         403,
@@ -1096,6 +1164,7 @@ export async function acceptOrder(req, res) {
     }
 
     if (order.status !== "PLACED") {
+      log.warn("acceptOrder", "Invalid status for accept", { orderId: id, currentStatus: order.status });
       return sendResponse(
         res,
         400,
@@ -1111,9 +1180,20 @@ export async function acceptOrder(req, res) {
       await order.save();
     }
 
+    const duration = Date.now() - startTime;
+    log.event("ORDER_ACCEPTED", "Order accepted by kitchen", {
+      orderId: id,
+      orderNumber: order.orderNumber,
+      kitchenId: kitchenId.toString(),
+      staffId: staffId.toString(),
+      estimatedPrepTime,
+    });
+    log.response("acceptOrder", 200, true, duration);
+
     return sendResponse(res, 200, true, "Order accepted", { order });
   } catch (error) {
-    console.log("Accept order error:", error);
+    const duration = Date.now() - startTime;
+    log.error("acceptOrder", "Failed to accept order", { error, duration: `${duration}ms` });
     return sendResponse(res, 500, false, "Failed to accept order");
   }
 }
@@ -1124,18 +1204,23 @@ export async function acceptOrder(req, res) {
  * @access Kitchen Staff
  */
 export async function rejectOrder(req, res) {
+  const startTime = Date.now();
   try {
     const { id } = req.params;
     const { reason } = req.body;
     const kitchenId = req.user.kitchenId;
     const staffId = req.user._id;
 
+    log.request(req, "rejectOrder");
+
     const order = await Order.findById(id);
     if (!order) {
+      log.warn("rejectOrder", "Order not found", { orderId: id });
       return sendResponse(res, 404, false, "Order not found");
     }
 
     if (order.kitchenId.toString() !== kitchenId.toString()) {
+      log.warn("rejectOrder", "Kitchen mismatch", { orderId: id });
       return sendResponse(
         res,
         403,
@@ -1145,6 +1230,7 @@ export async function rejectOrder(req, res) {
     }
 
     if (order.status !== "PLACED") {
+      log.warn("rejectOrder", "Invalid status for reject", { orderId: id, currentStatus: order.status });
       return sendResponse(
         res,
         400,
@@ -1165,6 +1251,7 @@ export async function rejectOrder(req, res) {
         "Order rejected by kitchen"
       );
       vouchersRestored = restoreResult.count;
+      log.info("rejectOrder", "Vouchers restored", { orderId: id, count: vouchersRestored });
     }
 
     // Process refund if payment was made
@@ -1172,7 +1259,18 @@ export async function rejectOrder(req, res) {
     if (order.amountPaid > 0 && order.paymentStatus === "PAID") {
       await processRefund(order, "Order rejected by kitchen", "KITCHEN");
       refundInitiated = true;
+      log.info("rejectOrder", "Refund initiated", { orderId: id, amount: order.amountPaid });
     }
+
+    const duration = Date.now() - startTime;
+    log.event("ORDER_REJECTED", "Order rejected by kitchen", {
+      orderId: id,
+      orderNumber: order.orderNumber,
+      reason,
+      vouchersRestored,
+      refundInitiated,
+    });
+    log.response("rejectOrder", 200, true, duration);
 
     return sendResponse(res, 200, true, "Order rejected", {
       order,
@@ -1180,7 +1278,8 @@ export async function rejectOrder(req, res) {
       vouchersRestored,
     });
   } catch (error) {
-    console.log("Reject order error:", error);
+    const duration = Date.now() - startTime;
+    log.error("rejectOrder", "Failed to reject order", { error, duration: `${duration}ms` });
     return sendResponse(res, 500, false, "Failed to reject order");
   }
 }
@@ -1191,18 +1290,23 @@ export async function rejectOrder(req, res) {
  * @access Kitchen Staff
  */
 export async function cancelOrder(req, res) {
+  const startTime = Date.now();
   try {
     const { id } = req.params;
     const { reason } = req.body;
     const kitchenId = req.user.kitchenId;
     const staffId = req.user._id;
 
+    log.request(req, "cancelOrder");
+
     const order = await Order.findById(id);
     if (!order) {
+      log.warn("cancelOrder", "Order not found", { orderId: id });
       return sendResponse(res, 404, false, "Order not found");
     }
 
     if (order.kitchenId.toString() !== kitchenId.toString()) {
+      log.warn("cancelOrder", "Kitchen mismatch", { orderId: id });
       return sendResponse(
         res,
         403,
@@ -1212,6 +1316,7 @@ export async function cancelOrder(req, res) {
     }
 
     if (!["ACCEPTED", "PREPARING"].includes(order.status)) {
+      log.warn("cancelOrder", "Invalid status for cancel", { orderId: id, currentStatus: order.status });
       return sendResponse(
         res,
         400,
@@ -1233,6 +1338,7 @@ export async function cancelOrder(req, res) {
         "Order cancelled by kitchen"
       );
       vouchersRestored = restoreResult.count;
+      log.info("cancelOrder", "Vouchers restored", { orderId: id, count: vouchersRestored });
     }
 
     // Process refund if payment was made
@@ -1240,7 +1346,19 @@ export async function cancelOrder(req, res) {
     if (order.amountPaid > 0 && order.paymentStatus === "PAID") {
       await processRefund(order, "Order cancelled by kitchen", "KITCHEN");
       refundInitiated = true;
+      log.info("cancelOrder", "Refund initiated", { orderId: id, amount: order.amountPaid });
     }
+
+    const duration = Date.now() - startTime;
+    log.event("ORDER_CANCELLED", "Order cancelled by kitchen", {
+      orderId: id,
+      orderNumber: order.orderNumber,
+      reason,
+      previousStatus: order.status,
+      vouchersRestored,
+      refundInitiated,
+    });
+    log.response("cancelOrder", 200, true, duration);
 
     return sendResponse(res, 200, true, "Order cancelled", {
       order,
@@ -1248,7 +1366,8 @@ export async function cancelOrder(req, res) {
       vouchersRestored,
     });
   } catch (error) {
-    console.log("Cancel order error:", error);
+    const duration = Date.now() - startTime;
+    log.error("cancelOrder", "Failed to cancel order", { error, duration: `${duration}ms` });
     return sendResponse(res, 500, false, "Failed to cancel order");
   }
 }
@@ -1334,23 +1453,29 @@ export async function getDriverOrders(req, res) {
  * @access Driver (assigned)
  */
 export async function updateDeliveryStatus(req, res) {
+  const startTime = Date.now();
   try {
     const { id } = req.params;
     const { status, notes, proofOfDelivery } = req.body;
     const driverId = req.user._id;
 
+    log.request(req, "updateDeliveryStatus");
+
     const order = await Order.findById(id);
     if (!order) {
+      log.warn("updateDeliveryStatus", "Order not found", { orderId: id });
       return sendResponse(res, 404, false, "Order not found");
     }
 
     if (order.driverId?.toString() !== driverId.toString()) {
+      log.warn("updateDeliveryStatus", "Driver not assigned", { orderId: id, driverId: driverId.toString() });
       return sendResponse(res, 403, false, "Not assigned to this order");
     }
 
     // Validate status transition
     const validNextStatuses = getNextValidStatuses(order.status);
     if (!validNextStatuses.includes(status)) {
+      log.warn("updateDeliveryStatus", "Invalid status transition", { orderId: id, from: order.status, to: status });
       return sendResponse(
         res,
         400,
@@ -1358,6 +1483,8 @@ export async function updateDeliveryStatus(req, res) {
         `Cannot transition from ${order.status} to ${status}`
       );
     }
+
+    const previousStatus = order.status;
 
     // Handle proof of delivery for DELIVERED status
     if (status === "DELIVERED" && proofOfDelivery) {
@@ -1370,9 +1497,21 @@ export async function updateDeliveryStatus(req, res) {
 
     await order.updateStatus(status, driverId, notes);
 
+    const duration = Date.now() - startTime;
+    log.event("DELIVERY_STATUS_UPDATED", `Order ${status.toLowerCase()}`, {
+      orderId: id,
+      orderNumber: order.orderNumber,
+      previousStatus,
+      newStatus: status,
+      driverId: driverId.toString(),
+      hasProofOfDelivery: !!proofOfDelivery,
+    });
+    log.response("updateDeliveryStatus", 200, true, duration);
+
     return sendResponse(res, 200, true, "Delivery status updated", { order });
   } catch (error) {
-    console.log("Update delivery status error:", error);
+    const duration = Date.now() - startTime;
+    log.error("updateDeliveryStatus", "Failed to update delivery status", { error, duration: `${duration}ms` });
     return sendResponse(res, 500, false, "Failed to update delivery status");
   }
 }

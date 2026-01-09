@@ -213,6 +213,46 @@ export const cronMiddleware = (req, res, next) => {
 };
 
 /**
+ * Firebase-only auth middleware - verifies Firebase token without requiring user in DB
+ * Used for sync/register endpoints where user may not exist yet
+ */
+export const firebaseAuthMiddleware = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      console.log("> Firebase auth error: No token provided");
+      return sendResponse(res, 401, "Unauthorized", null, "No token provided");
+    }
+
+    const token = authHeader.split(" ")[1];
+
+    // Verify Firebase ID token
+    const decodedToken = await firebaseAdmin.auth().verifyIdToken(token);
+    const { uid, phone_number } = decodedToken;
+    const phone = normalizePhone(phone_number);
+
+    // Attach phone and Firebase UID to request (user may not exist yet)
+    req.phone = phone;
+    req.firebaseUid = uid;
+
+    next();
+  } catch (error) {
+    console.log(`> Firebase auth error: ${error.message}`);
+
+    if (error.code === "auth/id-token-expired") {
+      return sendResponse(res, 401, "Unauthorized", null, "Token expired");
+    }
+
+    if (error.code === "auth/argument-error") {
+      return sendResponse(res, 401, "Unauthorized", null, "Invalid token");
+    }
+
+    return sendResponse(res, 401, "Unauthorized", null, "Authentication failed");
+  }
+};
+
+/**
  * Optional auth middleware - attaches user if token present, continues otherwise
  * Useful for endpoints that work differently for authenticated vs unauthenticated users
  */
@@ -395,6 +435,7 @@ export default {
   roleMiddleware,
   internalAuthMiddleware,
   cronMiddleware,
+  firebaseAuthMiddleware,
   optionalAuthMiddleware,
   jwtAuthMiddleware,
   kitchenAccessMiddleware,

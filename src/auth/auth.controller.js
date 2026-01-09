@@ -68,40 +68,67 @@ const hashPassword = async (password) => {
 };
 
 /**
- * Sync user after Firebase OTP authentication
- * Creates CUSTOMER account if new, returns existing user if found
+ * Sync/check user after Firebase OTP authentication
+ * Only checks if user exists - does NOT create new users
  *
  * POST /api/auth/sync
  */
 export const syncUser = async (req, res) => {
   try {
-    const { name, email, dietaryPreferences } = req.body;
     const phone = req.phone;
     const firebaseUid = req.firebaseUid;
 
     // Find existing user
-    let user = await User.findOne({ phone, status: { $ne: "DELETED" } });
+    const user = await User.findOne({ phone, status: { $ne: "DELETED" } });
 
-    if (user) {
-      // Existing user - update Firebase UID if not set
-      if (!user.firebaseUid && firebaseUid) {
-        user.firebaseUid = firebaseUid;
-      }
-      user.lastLoginAt = new Date();
-      await user.save();
-
-      const isProfileComplete = Boolean(user.name);
-
-      return sendResponse(res, 200, "User authenticated", {
-        user: user.toJSON(),
-        isNewUser: false,
-        isProfileComplete,
+    if (!user) {
+      // User does not exist - client should redirect to registration
+      return sendResponse(res, 200, "User not found", {
+        user: null,
+        isNewUser: true,
+        isProfileComplete: false,
       });
     }
 
-    // New user - validate name is provided
-    if (!name) {
-      return sendResponse(res, 400, "Name is required for registration");
+    // Existing user - update Firebase UID if not set
+    if (!user.firebaseUid && firebaseUid) {
+      user.firebaseUid = firebaseUid;
+    }
+    user.lastLoginAt = new Date();
+    await user.save();
+
+    const isProfileComplete = Boolean(user.name);
+
+    return sendResponse(res, 200, "User authenticated", {
+      user: user.toJSON(),
+      isNewUser: false,
+      isProfileComplete,
+    });
+  } catch (error) {
+    console.log("> Auth sync error:", error);
+    return sendResponse(res, 500, "Server error");
+  }
+};
+
+/**
+ * Register new user after Firebase OTP authentication
+ * Creates new CUSTOMER account with profile details
+ *
+ * POST /api/auth/register
+ */
+export const registerUser = async (req, res) => {
+  try {
+    const { name, email, dietaryPreferences } = req.body;
+    const phone = req.phone;
+    const firebaseUid = req.firebaseUid;
+
+    // Check if user already exists
+    const existingUser = await User.findOne({ phone, status: { $ne: "DELETED" } });
+    if (existingUser) {
+      return sendResponse(res, 409, "User already exists", {
+        user: existingUser.toJSON(),
+        isProfileComplete: Boolean(existingUser.name),
+      });
     }
 
     // Create new CUSTOMER user
@@ -120,13 +147,12 @@ export const syncUser = async (req, res) => {
 
     console.log(`> New customer registered: ${phone}`);
 
-    return sendResponse(res, 201, "User registered", {
+    return sendResponse(res, 201, "User registered successfully", {
       user: newUser.toJSON(),
-      isNewUser: true,
       isProfileComplete: true,
     });
   } catch (error) {
-    console.log("> Auth sync error:", error);
+    console.log("> Auth register error:", error);
     return sendResponse(res, 500, "Server error");
   }
 };
@@ -415,6 +441,7 @@ export const adminRefreshToken = async (req, res) => {
 
 export default {
   syncUser,
+  registerUser,
   completeProfile,
   getCurrentUser,
   updateFcmToken,

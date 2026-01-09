@@ -8,10 +8,20 @@ import { commonSchemas } from "../../middlewares/validate.middleware.js";
 
 /**
  * Sync user after Firebase auth
- * Name required for new customers
+ * No body required - just checks if user exists
  */
-export const syncUserSchema = Joi.object({
-  name: Joi.string().min(2).max(100).trim(),
+export const syncUserSchema = Joi.object({});
+
+/**
+ * Register new user after Firebase auth
+ * Name is required
+ */
+export const registerUserSchema = Joi.object({
+  name: Joi.string().min(2).max(100).trim().required().messages({
+    "any.required": "Name is required",
+    "string.empty": "Name is required",
+    "string.min": "Name must be at least 2 characters",
+  }),
   email: Joi.string().email().allow("", null),
   dietaryPreferences: Joi.array().items(
     Joi.string().valid("VEG", "NON_VEG", "VEGAN", "JAIN", "EGGETARIAN")
@@ -75,6 +85,7 @@ export const fcmTokenSchema = Joi.object({
 
 export default {
   syncUserSchema,
+  registerUserSchema,
   completeProfileSchema,
   adminLoginSchema,
   changePasswordSchema,

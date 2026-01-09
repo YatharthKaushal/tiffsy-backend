@@ -1,9 +1,10 @@
 import { Router } from "express";
 import * as authController from "./auth.controller.js";
-import { authMiddleware, jwtAuthMiddleware } from "../../middlewares/auth.middleware.js";
+import { authMiddleware, firebaseAuthMiddleware, jwtAuthMiddleware } from "../../middlewares/auth.middleware.js";
 import { validateBody } from "../../middlewares/validate.middleware.js";
 import {
   syncUserSchema,
+  registerUserSchema,
   completeProfileSchema,
   adminLoginSchema,
   changePasswordSchema,
@@ -23,18 +24,31 @@ const router = Router();
 
 /**
  * POST /api/auth/sync
- * Sync/register user after Firebase OTP authentication
+ * Check if user exists after Firebase OTP authentication
+ * Returns user profile if exists, indicates new user if not
  */
 router.post(
   "/sync",
-  authMiddleware,
+  firebaseAuthMiddleware,
   validateBody(syncUserSchema),
   authController.syncUser
 );
 
 /**
+ * POST /api/auth/register
+ * Register new user after Firebase OTP authentication
+ * Creates new customer account with profile details
+ */
+router.post(
+  "/register",
+  firebaseAuthMiddleware,
+  validateBody(registerUserSchema),
+  authController.registerUser
+);
+
+/**
  * PUT /api/auth/profile
- * Complete or update user profile
+ * Complete or update user profile (for existing users)
  */
 router.put(
   "/profile",

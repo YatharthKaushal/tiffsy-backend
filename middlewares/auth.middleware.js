@@ -230,11 +230,26 @@ export const firebaseAuthMiddleware = async (req, res, next) => {
     // Verify Firebase ID token
     const decodedToken = await firebaseAdmin.auth().verifyIdToken(token);
     const { uid, phone_number } = decodedToken;
+
+    // Ensure phone number exists in token
+    if (!phone_number) {
+      console.log("> Firebase auth error: No phone number in token");
+      return sendResponse(res, 401, "Unauthorized", null, "Phone number not found in token");
+    }
+
     const phone = normalizePhone(phone_number);
+
+    // Ensure phone normalization succeeded
+    if (!phone) {
+      console.log(`> Firebase auth error: Invalid phone number format - ${phone_number}`);
+      return sendResponse(res, 401, "Unauthorized", null, "Invalid phone number format");
+    }
 
     // Attach phone and Firebase UID to request (user may not exist yet)
     req.phone = phone;
     req.firebaseUid = uid;
+
+    console.log(`> Firebase auth success - phone: ${phone}, uid: ${uid}`);
 
     next();
   } catch (error) {

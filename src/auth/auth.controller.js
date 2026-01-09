@@ -122,9 +122,35 @@ export const registerUser = async (req, res) => {
     const phone = req.phone;
     const firebaseUid = req.firebaseUid;
 
-    // Check if user already exists
-    const existingUser = await User.findOne({ phone, status: { $ne: "DELETED" } });
+    console.log(`> Register attempt - phone: ${phone}, name: ${name}`);
+
+    // Validate phone is present
+    if (!phone) {
+      console.log("> Auth register error: Phone not found in request");
+      return sendResponse(res, 400, "Phone number not found");
+    }
+
+    // Check if user already exists (including deleted - phone has unique index)
+    const existingUser = await User.findOne({ phone });
     if (existingUser) {
+      // If user was deleted, reactivate them
+      if (existingUser.status === "DELETED") {
+        existingUser.status = "ACTIVE";
+        existingUser.name = name.trim();
+        existingUser.email = email?.trim() || existingUser.email;
+        existingUser.dietaryPreferences = dietaryPreferences || [];
+        existingUser.firebaseUid = firebaseUid;
+        existingUser.lastLoginAt = new Date();
+        await existingUser.save();
+
+        console.log(`> Reactivated deleted customer: ${phone}`);
+
+        return sendResponse(res, 201, "User registered successfully", {
+          user: existingUser.toJSON(),
+          isProfileComplete: true,
+        });
+      }
+
       return sendResponse(res, 409, "User already exists", {
         user: existingUser.toJSON(),
         isProfileComplete: Boolean(existingUser.name),
@@ -152,7 +178,8 @@ export const registerUser = async (req, res) => {
       isProfileComplete: true,
     });
   } catch (error) {
-    console.log("> Auth register error:", error);
+    console.error("> Auth register error:", error.message);
+    console.error("> Auth register stack:", error.stack);
     return sendResponse(res, 500, "Server error");
   }
 };

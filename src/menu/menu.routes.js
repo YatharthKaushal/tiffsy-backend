@@ -1,6 +1,6 @@
 import { Router } from "express";
 import menuController from "./menu.controller.js";
-import { authMiddleware, adminMiddleware, roleMiddleware, optionalAuthMiddleware } from "../../middlewares/auth.middleware.js";
+import { adminAuthMiddleware, adminMiddleware, roleMiddleware, optionalAuthMiddleware } from "../../middlewares/auth.middleware.js";
 import { validateBody, validateQuery, validateParams } from "../../middlewares/validate.middleware.js";
 import {
   createMenuItemSchema,
@@ -59,7 +59,7 @@ router.get(
 // Create menu item
 router.post(
   "/",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware(["KITCHEN_STAFF", "ADMIN"]),
   validateBody(createMenuItemSchema),
   menuController.createMenuItem
@@ -84,7 +84,7 @@ router.get(
 // Update menu item
 router.put(
   "/:id",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware(["KITCHEN_STAFF", "ADMIN"]),
   validateParams(idParamSchema),
   validateBody(updateMenuItemSchema),
@@ -94,7 +94,7 @@ router.put(
 // Toggle item availability
 router.patch(
   "/:id/availability",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware(["KITCHEN_STAFF", "ADMIN"]),
   validateParams(idParamSchema),
   validateBody(toggleAvailabilitySchema),
@@ -104,7 +104,7 @@ router.patch(
 // Update add-ons for item
 router.patch(
   "/:id/addons",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware(["KITCHEN_STAFF", "ADMIN"]),
   validateParams(idParamSchema),
   validateBody(updateAddonsSchema),
@@ -114,7 +114,7 @@ router.patch(
 // Soft delete menu item
 router.delete(
   "/:id",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware(["KITCHEN_STAFF", "ADMIN"]),
   validateParams(idParamSchema),
   menuController.deleteMenuItem
@@ -127,7 +127,7 @@ router.delete(
 // Disable item for policy violation
 router.patch(
   "/:id/disable",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateParams(idParamSchema),
   validateBody(disableMenuItemSchema),
@@ -137,7 +137,7 @@ router.patch(
 // Re-enable disabled item
 router.patch(
   "/:id/enable",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateParams(idParamSchema),
   menuController.enableMenuItem

@@ -1,6 +1,6 @@
 import { Router } from "express";
 import kitchenController from "./kitchen.controller.js";
-import { authMiddleware, adminMiddleware, roleMiddleware, kitchenAccessMiddleware } from "../../middlewares/auth.middleware.js";
+import { adminAuthMiddleware, adminMiddleware, roleMiddleware, kitchenAccessMiddleware } from "../../middlewares/auth.middleware.js";
 import { validateBody, validateQuery, validateParams } from "../../middlewares/validate.middleware.js";
 import {
   createKitchenSchema,
@@ -63,7 +63,7 @@ router.get(
 // Get my kitchen
 router.get(
   "/my-kitchen",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware("KITCHEN_STAFF"),
   kitchenController.getMyKitchen
 );
@@ -71,7 +71,7 @@ router.get(
 // Update my kitchen images
 router.patch(
   "/my-kitchen/images",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware("KITCHEN_STAFF"),
   kitchenController.updateMyKitchenImages
 );
@@ -79,7 +79,7 @@ router.patch(
 // Toggle order acceptance for own kitchen
 router.patch(
   "/my-kitchen/accepting-orders",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware("KITCHEN_STAFF"),
   validateBody(toggleOrderingSchema),
   kitchenController.toggleOrderAcceptance
@@ -103,7 +103,7 @@ router.get(
 // Create kitchen
 router.post(
   "/",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateBody(createKitchenSchema),
   kitchenController.createKitchen
@@ -112,7 +112,7 @@ router.post(
 // Get all kitchens
 router.get(
   "/",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware(["ADMIN", "KITCHEN_STAFF"]),
   validateQuery(queryKitchensSchema),
   kitchenController.getKitchens
@@ -121,7 +121,7 @@ router.get(
 // Get kitchen by ID
 router.get(
   "/:id",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware(["ADMIN", "KITCHEN_STAFF"]),
   kitchenAccessMiddleware("id"), // FR-AUTH-8: Kitchen staff can only access their own kitchen
   validateParams(idParamSchema),
@@ -131,7 +131,7 @@ router.get(
 // Update kitchen
 router.put(
   "/:id",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateParams(idParamSchema),
   validateBody(updateKitchenSchema),
@@ -141,7 +141,7 @@ router.put(
 // Update kitchen type
 router.patch(
   "/:id/type",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateParams(idParamSchema),
   validateBody(typeSchema),
@@ -151,7 +151,7 @@ router.patch(
 // Update kitchen flags
 router.patch(
   "/:id/flags",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateParams(idParamSchema),
   validateBody(flagsSchema),
@@ -161,7 +161,7 @@ router.patch(
 // Update zones served
 router.patch(
   "/:id/zones",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateParams(idParamSchema),
   validateBody(assignZonesSchema),
@@ -171,7 +171,7 @@ router.patch(
 // Activate kitchen
 router.patch(
   "/:id/activate",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateParams(idParamSchema),
   kitchenController.activateKitchen
@@ -180,7 +180,7 @@ router.patch(
 // Deactivate kitchen
 router.patch(
   "/:id/deactivate",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateParams(idParamSchema),
   kitchenController.deactivateKitchen
@@ -189,7 +189,7 @@ router.patch(
 // Suspend kitchen
 router.patch(
   "/:id/suspend",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateParams(idParamSchema),
   validateBody(suspendSchema),
@@ -199,7 +199,7 @@ router.patch(
 // Toggle order acceptance (admin/staff)
 router.patch(
   "/:id/accepting-orders",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware(["ADMIN", "KITCHEN_STAFF"]),
   kitchenAccessMiddleware("id"), // FR-AUTH-8: Kitchen staff can only access their own kitchen
   validateParams(idParamSchema),
@@ -210,7 +210,7 @@ router.patch(
 // Delete kitchen (soft delete)
 router.delete(
   "/:id",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateParams(idParamSchema),
   kitchenController.deleteKitchen

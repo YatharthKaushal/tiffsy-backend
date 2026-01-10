@@ -1,7 +1,7 @@
 .claude
 node_modules
 node_module
-docs
+# docs
 .env
 secrets
 serviceAccountKey.json

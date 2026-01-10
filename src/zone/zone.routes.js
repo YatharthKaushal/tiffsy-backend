@@ -1,6 +1,6 @@
 import { Router } from "express";
 import zoneController from "./zone.controller.js";
-import { authMiddleware, adminMiddleware, roleMiddleware } from "../../middlewares/auth.middleware.js";
+import { adminAuthMiddleware, adminMiddleware, roleMiddleware } from "../../middlewares/auth.middleware.js";
 import { validateBody, validateQuery, validateParams } from "../../middlewares/validate.middleware.js";
 import {
   createZoneSchema,
@@ -58,7 +58,7 @@ router.get(
 // Create zone
 router.post(
   "/",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateBody(createZoneSchema),
   zoneController.createZone
@@ -67,7 +67,7 @@ router.post(
 // Get all zones
 router.get(
   "/",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware(["ADMIN", "KITCHEN_STAFF"]),
   validateQuery(queryZonesSchema),
   zoneController.getZones
@@ -76,7 +76,7 @@ router.get(
 // Get zone by ID
 router.get(
   "/:id",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware(["ADMIN", "KITCHEN_STAFF"]),
   validateParams(idParamSchema),
   zoneController.getZoneById
@@ -85,7 +85,7 @@ router.get(
 // Update zone
 router.put(
   "/:id",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateParams(idParamSchema),
   validateBody(updateZoneSchema),
@@ -95,7 +95,7 @@ router.put(
 // Activate zone
 router.patch(
   "/:id/activate",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateParams(idParamSchema),
   zoneController.activateZone
@@ -104,7 +104,7 @@ router.patch(
 // Deactivate zone
 router.patch(
   "/:id/deactivate",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateParams(idParamSchema),
   zoneController.deactivateZone
@@ -113,7 +113,7 @@ router.patch(
 // Toggle ordering
 router.patch(
   "/:id/ordering",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateParams(idParamSchema),
   validateBody(toggleOrderingSchema),
@@ -123,7 +123,7 @@ router.patch(
 // Delete zone
 router.delete(
   "/:id",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateParams(idParamSchema),
   zoneController.deleteZone

@@ -1,6 +1,6 @@
 import { Router } from "express";
 import voucherController from "./voucher.controller.js";
-import { authMiddleware, adminMiddleware, roleMiddleware, internalAuthMiddleware } from "../../middlewares/auth.middleware.js";
+import { adminAuthMiddleware, adminMiddleware, roleMiddleware, internalAuthMiddleware } from "../../middlewares/auth.middleware.js";
 import { validateBody, validateQuery, validateParams } from "../../middlewares/validate.middleware.js";
 import {
   checkEligibilitySchema,
@@ -43,7 +43,7 @@ router.get(
 // Get voucher balance
 router.get(
   "/balance",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware("CUSTOMER"),
   voucherController.getVoucherBalance
 );
@@ -51,7 +51,7 @@ router.get(
 // Get my vouchers
 router.get(
   "/my-vouchers",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware("CUSTOMER"),
   validateQuery(queryVouchersSchema),
   voucherController.getMyVouchers
@@ -60,7 +60,7 @@ router.get(
 // Check voucher eligibility
 router.post(
   "/check-eligibility",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware("CUSTOMER"),
   validateBody(checkEligibilitySchema),
   voucherController.checkVoucherEligibility
@@ -93,7 +93,7 @@ router.post(
 // Get all vouchers (admin view)
 router.get(
   "/admin/all",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateQuery(adminQueryVouchersSchema),
   voucherController.getAllVouchers
@@ -102,7 +102,7 @@ router.get(
 // Get voucher statistics
 router.get(
   "/admin/stats",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   voucherController.getVoucherStats
 );
@@ -110,7 +110,7 @@ router.get(
 // Expire vouchers (cron job endpoint)
 router.post(
   "/admin/expire",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   voucherController.expireVouchers
 );
@@ -118,7 +118,7 @@ router.post(
 // Admin restore vouchers
 router.post(
   "/admin/restore",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateBody(adminRestoreSchema),
   voucherController.adminRestoreVouchers
@@ -127,7 +127,7 @@ router.post(
 // Update cutoff times configuration
 router.put(
   "/cutoff-times",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateBody(updateCutoffTimesSchema),
   voucherController.updateCutoffTimes
@@ -140,7 +140,7 @@ router.put(
 // Get voucher by ID
 router.get(
   "/:id",
-  authMiddleware,
+  adminAuthMiddleware,
   validateParams(idParamSchema),
   voucherController.getVoucherById
 );

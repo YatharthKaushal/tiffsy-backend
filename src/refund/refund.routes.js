@@ -1,6 +1,6 @@
 import { Router } from "express";
 import refundController from "./refund.controller.js";
-import { authMiddleware, adminMiddleware, roleMiddleware, internalAuthMiddleware } from "../../middlewares/auth.middleware.js";
+import { adminAuthMiddleware, adminMiddleware, roleMiddleware, internalAuthMiddleware } from "../../middlewares/auth.middleware.js";
 import { validateBody, validateQuery, validateParams } from "../../middlewares/validate.middleware.js";
 import {
   initiateRefundSchema,
@@ -36,7 +36,7 @@ router.post(
 // Process failed refunds (cron job)
 router.post(
   "/process-failed",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   refundController.processFailedRefunds
 );
@@ -48,7 +48,7 @@ router.post(
 // Get my refunds
 router.get(
   "/my-refunds",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware("CUSTOMER"),
   validateQuery(queryMyRefundsSchema),
   refundController.getMyRefunds
@@ -61,7 +61,7 @@ router.get(
 // Get all refunds
 router.get(
   "/admin/all",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateQuery(queryAllRefundsSchema),
   refundController.getAllRefunds
@@ -70,7 +70,7 @@ router.get(
 // Get refund statistics
 router.get(
   "/admin/stats",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateQuery(queryRefundStatsSchema),
   refundController.getRefundStats
@@ -79,7 +79,7 @@ router.get(
 // Initiate manual refund
 router.post(
   "/admin/manual",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateBody(manualRefundSchema),
   refundController.initiateManualRefund
@@ -92,7 +92,7 @@ router.post(
 // Get refund by ID
 router.get(
   "/:id",
-  authMiddleware,
+  adminAuthMiddleware,
   validateParams(idParamSchema),
   refundController.getRefundById
 );
@@ -100,7 +100,7 @@ router.get(
 // Process refund
 router.post(
   "/:id/process",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateParams(idParamSchema),
   refundController.processRefund
@@ -109,7 +109,7 @@ router.post(
 // Approve refund
 router.patch(
   "/:id/approve",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateParams(idParamSchema),
   refundController.approveRefund
@@ -118,7 +118,7 @@ router.patch(
 // Cancel refund
 router.patch(
   "/:id/cancel",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateParams(idParamSchema),
   validateBody(cancelRefundSchema),
@@ -128,7 +128,7 @@ router.patch(
 // Retry refund
 router.post(
   "/:id/retry",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateParams(idParamSchema),
   refundController.retryRefund

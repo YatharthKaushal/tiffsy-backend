@@ -1,6 +1,6 @@
 import { Router } from "express";
 import deliveryController from "./delivery.controller.js";
-import { authMiddleware, adminMiddleware, roleMiddleware } from "../../middlewares/auth.middleware.js";
+import { adminAuthMiddleware, adminMiddleware, roleMiddleware } from "../../middlewares/auth.middleware.js";
 import { validateBody, validateQuery, validateParams } from "../../middlewares/validate.middleware.js";
 import {
   autoBatchSchema,
@@ -33,7 +33,7 @@ const orderIdParamSchema = Joi.object({
 // Auto-batch orders
 router.post(
   "/auto-batch",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateBody(autoBatchSchema),
   deliveryController.autoBatchOrders
@@ -42,7 +42,7 @@ router.post(
 // Dispatch batches
 router.post(
   "/dispatch",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateBody(dispatchBatchesSchema),
   deliveryController.dispatchBatches
@@ -55,7 +55,7 @@ router.post(
 // Get available batches
 router.get(
   "/available-batches",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware("DRIVER"),
   deliveryController.getAvailableBatches
 );
@@ -63,7 +63,7 @@ router.get(
 // Get my batch
 router.get(
   "/my-batch",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware("DRIVER"),
   deliveryController.getMyBatch
 );
@@ -75,7 +75,7 @@ router.get(
 // Get kitchen batches
 router.get(
   "/kitchen-batches",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware("KITCHEN_STAFF"),
   validateQuery(queryKitchenBatchesSchema),
   deliveryController.getKitchenBatches
@@ -88,7 +88,7 @@ router.get(
 // Get all batches
 router.get(
   "/admin/batches",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateQuery(queryAllBatchesSchema),
   deliveryController.getAllBatches
@@ -97,7 +97,7 @@ router.get(
 // Get delivery statistics
 router.get(
   "/admin/stats",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   deliveryController.getDeliveryStats
 );
@@ -105,7 +105,7 @@ router.get(
 // Update batch configuration
 router.put(
   "/config",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateBody(updateBatchConfigSchema),
   deliveryController.updateBatchConfig
@@ -114,7 +114,7 @@ router.put(
 // Get batch configuration
 router.get(
   "/config",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   deliveryController.getBatchConfig
 );
@@ -126,7 +126,7 @@ router.get(
 // Get batch by ID
 router.get(
   "/batches/:batchId",
-  authMiddleware,
+  adminAuthMiddleware,
   validateParams(batchIdParamSchema),
   deliveryController.getBatchById
 );
@@ -134,7 +134,7 @@ router.get(
 // Accept batch (Driver)
 router.post(
   "/batches/:batchId/accept",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware("DRIVER"),
   validateParams(batchIdParamSchema),
   deliveryController.acceptBatch
@@ -143,7 +143,7 @@ router.post(
 // Mark batch as picked up (Driver)
 router.patch(
   "/batches/:batchId/pickup",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware("DRIVER"),
   validateParams(batchIdParamSchema),
   deliveryController.updateBatchPickup
@@ -152,7 +152,7 @@ router.patch(
 // Complete batch (Driver)
 router.patch(
   "/batches/:batchId/complete",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware("DRIVER"),
   validateParams(batchIdParamSchema),
   deliveryController.completeBatch
@@ -161,7 +161,7 @@ router.patch(
 // Update delivery sequence (Driver)
 router.patch(
   "/batches/:batchId/sequence",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware("DRIVER"),
   validateParams(batchIdParamSchema),
   validateBody(updateDeliverySequenceSchema),
@@ -171,7 +171,7 @@ router.patch(
 // Reassign batch (Admin)
 router.patch(
   "/batches/:batchId/reassign",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateParams(batchIdParamSchema),
   validateBody(reassignBatchSchema),
@@ -181,7 +181,7 @@ router.patch(
 // Cancel batch (Admin)
 router.patch(
   "/batches/:batchId/cancel",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateParams(batchIdParamSchema),
   validateBody(cancelBatchSchema),
@@ -195,7 +195,7 @@ router.patch(
 // Update delivery status (Driver)
 router.patch(
   "/orders/:orderId/status",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware("DRIVER"),
   validateParams(orderIdParamSchema),
   validateBody(updateDeliveryStatusSchema),

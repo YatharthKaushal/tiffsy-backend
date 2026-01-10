@@ -1,6 +1,6 @@
 import { Router } from "express";
 import addressController from "./address.controller.js";
-import { authMiddleware, roleMiddleware } from "../../middlewares/auth.middleware.js";
+import { adminAuthMiddleware, roleMiddleware } from "../../middlewares/auth.middleware.js";
 import { validateBody, validateQuery, validateParams } from "../../middlewares/validate.middleware.js";
 import {
   createAddressSchema,
@@ -40,7 +40,7 @@ router.get(
 // Create address
 router.post(
   "/",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware("CUSTOMER"),
   validateBody(createAddressSchema),
   addressController.createAddress
@@ -49,7 +49,7 @@ router.post(
 // Get all addresses
 router.get(
   "/",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware("CUSTOMER"),
   validateQuery(addressesQuerySchema),
   addressController.getAddresses
@@ -58,7 +58,7 @@ router.get(
 // Get address by ID
 router.get(
   "/:id",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware("CUSTOMER"),
   validateParams(idParamSchema),
   addressController.getAddressById
@@ -67,7 +67,7 @@ router.get(
 // Update address
 router.put(
   "/:id",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware("CUSTOMER"),
   validateParams(idParamSchema),
   validateBody(updateAddressSchema),
@@ -77,7 +77,7 @@ router.put(
 // Delete address
 router.delete(
   "/:id",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware("CUSTOMER"),
   validateParams(idParamSchema),
   addressController.deleteAddress
@@ -86,7 +86,7 @@ router.delete(
 // Set default address
 router.patch(
   "/:id/default",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware("CUSTOMER"),
   validateParams(idParamSchema),
   addressController.setDefaultAddress
@@ -95,7 +95,7 @@ router.patch(
 // Get kitchens for address
 router.get(
   "/:id/kitchens",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware("CUSTOMER"),
   validateParams(idParamSchema),
   validateQuery(getKitchensQuerySchema),

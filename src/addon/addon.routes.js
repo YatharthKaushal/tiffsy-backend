@@ -1,6 +1,6 @@
 import { Router } from "express";
 import addonController from "./addon.controller.js";
-import { authMiddleware, roleMiddleware, optionalAuthMiddleware } from "../../middlewares/auth.middleware.js";
+import { adminAuthMiddleware, roleMiddleware, optionalAuthMiddleware } from "../../middlewares/auth.middleware.js";
 import { validateBody, validateQuery, validateParams } from "../../middlewares/validate.middleware.js";
 import {
   createAddonSchema,
@@ -43,7 +43,7 @@ router.get(
 // Get kitchen add-on library (with usage stats)
 router.get(
   "/library/:kitchenId",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware(["KITCHEN_STAFF", "ADMIN"]),
   validateParams(kitchenIdParamSchema),
   addonController.getKitchenAddonLibrary
@@ -52,7 +52,7 @@ router.get(
 // Get addons available to attach to a menu item
 router.get(
   "/for-menu-item/:menuItemId",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware(["KITCHEN_STAFF", "ADMIN"]),
   validateParams(menuItemIdParamSchema),
   addonController.getAddonsForMenuItem
@@ -65,7 +65,7 @@ router.get(
 // Create add-on
 router.post(
   "/",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware(["KITCHEN_STAFF", "ADMIN"]),
   validateBody(createAddonSchema),
   addonController.createAddon
@@ -90,7 +90,7 @@ router.get(
 // Update add-on
 router.put(
   "/:id",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware(["KITCHEN_STAFF", "ADMIN"]),
   validateParams(idParamSchema),
   validateBody(updateAddonSchema),
@@ -100,7 +100,7 @@ router.put(
 // Toggle add-on availability
 router.patch(
   "/:id/availability",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware(["KITCHEN_STAFF", "ADMIN"]),
   validateParams(idParamSchema),
   validateBody(toggleAvailabilitySchema),
@@ -110,7 +110,7 @@ router.patch(
 // Soft delete add-on
 router.delete(
   "/:id",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware(["KITCHEN_STAFF", "ADMIN"]),
   validateParams(idParamSchema),
   addonController.deleteAddon

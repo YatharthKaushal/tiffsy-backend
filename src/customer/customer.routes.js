@@ -1,6 +1,6 @@
 import { Router } from "express";
 import customerController from "./customer.controller.js";
-import { authMiddleware, roleMiddleware } from "../../middlewares/auth.middleware.js";
+import { adminAuthMiddleware, roleMiddleware } from "../../middlewares/auth.middleware.js";
 import { validateBody } from "../../middlewares/validate.middleware.js";
 import {
   completeProfileSchema,
@@ -20,7 +20,7 @@ const router = Router();
 // Check profile completeness
 router.get(
   "/profile/status",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware("CUSTOMER"),
   customerController.checkProfileCompleteness
 );
@@ -28,7 +28,7 @@ router.get(
 // Complete profile (onboarding)
 router.post(
   "/profile/complete",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware("CUSTOMER"),
   validateBody(completeProfileSchema),
   customerController.completeProfile
@@ -37,7 +37,7 @@ router.post(
 // Get profile
 router.get(
   "/profile",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware("CUSTOMER"),
   customerController.getProfile
 );
@@ -45,7 +45,7 @@ router.get(
 // Update profile
 router.put(
   "/profile",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware("CUSTOMER"),
   validateBody(updateProfileSchema),
   customerController.updateProfile
@@ -54,7 +54,7 @@ router.put(
 // Update dietary preferences
 router.patch(
   "/profile/dietary-preferences",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware("CUSTOMER"),
   validateBody(updateDietarySchema),
   customerController.updateDietaryPreferences
@@ -63,7 +63,7 @@ router.patch(
 // Update profile image
 router.patch(
   "/profile/image",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware("CUSTOMER"),
   customerController.updateProfileImage
 );
@@ -71,7 +71,7 @@ router.patch(
 // Delete account
 router.delete(
   "/profile",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware("CUSTOMER"),
   validateBody(deleteAccountSchema),
   customerController.deleteAccount
@@ -86,7 +86,7 @@ router.delete(
 // Query: addressId (optional - uses default address if not provided)
 router.get(
   "/home",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware("CUSTOMER"),
   customerController.getHomeFeed
 );
@@ -96,7 +96,7 @@ router.get(
 // Query: addressId (optional)
 router.get(
   "/menu/:mealWindow",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware("CUSTOMER"),
   customerController.getMealMenu
 );
@@ -105,7 +105,7 @@ router.get(
 // Body: { pincode } or { zoneId }
 router.post(
   "/check-serviceability",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware("CUSTOMER"),
   customerController.checkServiceability
 );

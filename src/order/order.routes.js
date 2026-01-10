@@ -1,6 +1,6 @@
 import { Router } from "express";
 import orderController from "./order.controller.js";
-import { authMiddleware, adminMiddleware, roleMiddleware } from "../../middlewares/auth.middleware.js";
+import { adminAuthMiddleware, adminMiddleware, roleMiddleware } from "../../middlewares/auth.middleware.js";
 import { validateBody, validateQuery, validateParams } from "../../middlewares/validate.middleware.js";
 import {
   createOrderSchema,
@@ -32,7 +32,7 @@ const idParamSchema = Joi.object({
 // Calculate pricing (cart preview)
 router.post(
   "/calculate-pricing",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware("CUSTOMER"),
   validateBody(calculatePricingSchema),
   orderController.getOrderPricing
@@ -41,7 +41,7 @@ router.post(
 // Get my orders
 router.get(
   "/my-orders",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware("CUSTOMER"),
   validateQuery(queryMyOrdersSchema),
   orderController.getMyOrders
@@ -54,7 +54,7 @@ router.get(
 // Get kitchen orders
 router.get(
   "/kitchen",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware("KITCHEN_STAFF"),
   validateQuery(queryKitchenOrdersSchema),
   orderController.getKitchenOrders
@@ -67,7 +67,7 @@ router.get(
 // Get driver's assigned orders
 router.get(
   "/driver",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware("DRIVER"),
   orderController.getDriverOrders
 );
@@ -79,7 +79,7 @@ router.get(
 // Get all orders
 router.get(
   "/admin/all",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateQuery(queryAllOrdersSchema),
   orderController.getAllOrders
@@ -88,7 +88,7 @@ router.get(
 // Get order statistics
 router.get(
   "/admin/stats",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   orderController.getOrderStats
 );
@@ -100,7 +100,7 @@ router.get(
 // Create new order
 router.post(
   "/",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware("CUSTOMER"),
   validateBody(createOrderSchema),
   orderController.createOrder
@@ -113,7 +113,7 @@ router.post(
 // Get order by ID
 router.get(
   "/:id",
-  authMiddleware,
+  adminAuthMiddleware,
   validateParams(idParamSchema),
   orderController.getOrderById
 );
@@ -121,7 +121,7 @@ router.get(
 // Track order
 router.get(
   "/:id/track",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware("CUSTOMER"),
   validateParams(idParamSchema),
   orderController.trackOrder
@@ -130,7 +130,7 @@ router.get(
 // Rate order
 router.post(
   "/:id/rate",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware("CUSTOMER"),
   validateParams(idParamSchema),
   validateBody(rateOrderSchema),
@@ -140,7 +140,7 @@ router.post(
 // Customer cancel order
 router.patch(
   "/:id/customer-cancel",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware("CUSTOMER"),
   validateParams(idParamSchema),
   validateBody(cancelOrderSchema),
@@ -154,7 +154,7 @@ router.patch(
 // Accept order (Kitchen Staff)
 router.patch(
   "/:id/accept",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware("KITCHEN_STAFF"),
   validateParams(idParamSchema),
   validateBody(acceptOrderSchema),
@@ -164,7 +164,7 @@ router.patch(
 // Reject order (Kitchen Staff)
 router.patch(
   "/:id/reject",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware("KITCHEN_STAFF"),
   validateParams(idParamSchema),
   validateBody(rejectOrderSchema),
@@ -174,7 +174,7 @@ router.patch(
 // Cancel order (Kitchen Staff or Admin)
 router.patch(
   "/:id/cancel",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware(["KITCHEN_STAFF", "ADMIN"]),
   validateParams(idParamSchema),
   validateBody(cancelOrderSchema),
@@ -184,7 +184,7 @@ router.patch(
 // Update order status (Kitchen Staff)
 router.patch(
   "/:id/status",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware("KITCHEN_STAFF"),
   validateParams(idParamSchema),
   validateBody(updateOrderStatusSchema),
@@ -194,7 +194,7 @@ router.patch(
 // Update delivery status (Driver)
 router.patch(
   "/:id/delivery-status",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware("DRIVER"),
   validateParams(idParamSchema),
   validateBody(updateDeliveryStatusSchema),
@@ -204,7 +204,7 @@ router.patch(
 // Admin cancel order
 router.patch(
   "/:id/admin-cancel",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateParams(idParamSchema),
   validateBody(adminCancelOrderSchema),

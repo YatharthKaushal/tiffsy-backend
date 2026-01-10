@@ -1,6 +1,6 @@
 import { Router } from "express";
 import couponController from "./coupon.controller.js";
-import { authMiddleware, adminMiddleware, roleMiddleware } from "../../middlewares/auth.middleware.js";
+import { adminAuthMiddleware, adminMiddleware, roleMiddleware } from "../../middlewares/auth.middleware.js";
 import { validateBody, validateQuery, validateParams } from "../../middlewares/validate.middleware.js";
 import {
   createCouponSchema,
@@ -26,7 +26,7 @@ const idParamSchema = Joi.object({
 // Get available coupons
 router.get(
   "/available",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware("CUSTOMER"),
   validateQuery(queryAvailableCouponsSchema),
   couponController.getAvailableCoupons
@@ -35,7 +35,7 @@ router.get(
 // Validate coupon
 router.post(
   "/validate",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware("CUSTOMER"),
   validateBody(validateCouponSchema),
   couponController.validateCoupon
@@ -48,7 +48,7 @@ router.post(
 // Apply coupon (internal service call)
 router.post(
   "/apply",
-  authMiddleware,
+  adminAuthMiddleware,
   validateBody(applyCouponSchema),
   couponController.applyCoupon
 );
@@ -56,7 +56,7 @@ router.post(
 // Expire coupons (cron job)
 router.post(
   "/expire",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   couponController.expireCoupons
 );
@@ -68,7 +68,7 @@ router.post(
 // Create coupon
 router.post(
   "/",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateBody(createCouponSchema),
   couponController.createCoupon
@@ -77,7 +77,7 @@ router.post(
 // Get all coupons
 router.get(
   "/",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateQuery(queryCouponsSchema),
   couponController.getCoupons
@@ -86,7 +86,7 @@ router.get(
 // Get coupon by ID
 router.get(
   "/:id",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateParams(idParamSchema),
   couponController.getCouponById
@@ -95,7 +95,7 @@ router.get(
 // Update coupon
 router.put(
   "/:id",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateParams(idParamSchema),
   validateBody(updateCouponSchema),
@@ -105,7 +105,7 @@ router.put(
 // Activate coupon
 router.patch(
   "/:id/activate",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateParams(idParamSchema),
   couponController.activateCoupon
@@ -114,7 +114,7 @@ router.patch(
 // Deactivate coupon
 router.patch(
   "/:id/deactivate",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateParams(idParamSchema),
   couponController.deactivateCoupon
@@ -123,7 +123,7 @@ router.patch(
 // Delete coupon
 router.delete(
   "/:id",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateParams(idParamSchema),
   couponController.deleteCoupon

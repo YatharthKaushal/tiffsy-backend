@@ -1,6 +1,6 @@
 import { Router } from "express";
 import subscriptionController from "./subscription.controller.js";
-import { authMiddleware, adminMiddleware, roleMiddleware, optionalAuthMiddleware } from "../../middlewares/auth.middleware.js";
+import { adminAuthMiddleware, adminMiddleware, roleMiddleware, optionalAuthMiddleware } from "../../middlewares/auth.middleware.js";
 import { validateBody, validateQuery, validateParams } from "../../middlewares/validate.middleware.js";
 import {
   createPlanSchema,
@@ -50,7 +50,7 @@ router.get(
 // Create plan
 router.post(
   "/plans",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateBody(createPlanSchema),
   subscriptionController.createPlan
@@ -59,7 +59,7 @@ router.post(
 // Get all plans (admin view)
 router.get(
   "/plans",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateQuery(queryPlansSchema),
   subscriptionController.getPlans
@@ -76,7 +76,7 @@ router.get(
 // Update plan
 router.put(
   "/plans/:id",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateParams(idParamSchema),
   validateBody(updatePlanSchema),
@@ -86,7 +86,7 @@ router.put(
 // Activate plan
 router.patch(
   "/plans/:id/activate",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateParams(idParamSchema),
   subscriptionController.activatePlan
@@ -95,7 +95,7 @@ router.patch(
 // Deactivate plan
 router.patch(
   "/plans/:id/deactivate",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateParams(idParamSchema),
   subscriptionController.deactivatePlan
@@ -104,7 +104,7 @@ router.patch(
 // Archive plan
 router.patch(
   "/plans/:id/archive",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateParams(idParamSchema),
   subscriptionController.archivePlan
@@ -117,7 +117,7 @@ router.patch(
 // Purchase subscription
 router.post(
   "/purchase",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware("CUSTOMER"),
   validateBody(purchaseSubscriptionSchema),
   subscriptionController.purchaseSubscription
@@ -126,7 +126,7 @@ router.post(
 // Get my subscriptions
 router.get(
   "/my-subscriptions",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware("CUSTOMER"),
   validateQuery(queryMySubscriptionsSchema),
   subscriptionController.getMySubscriptions
@@ -139,7 +139,7 @@ router.get(
 // Get all subscriptions (admin view)
 router.get(
   "/admin/all",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateQuery(querySubscriptionsSchema),
   subscriptionController.getAllSubscriptions
@@ -152,7 +152,7 @@ router.get(
 // Get subscription by ID
 router.get(
   "/:id",
-  authMiddleware,
+  adminAuthMiddleware,
   validateParams(idParamSchema),
   subscriptionController.getSubscriptionById
 );
@@ -160,7 +160,7 @@ router.get(
 // Cancel subscription (customer-initiated)
 router.post(
   "/:id/cancel",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware("CUSTOMER"),
   validateParams(idParamSchema),
   validateBody(cancelSubscriptionSchema),
@@ -170,7 +170,7 @@ router.post(
 // Admin cancel subscription
 router.post(
   "/:id/admin-cancel",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateParams(idParamSchema),
   validateBody(adminCancelSubscriptionSchema),

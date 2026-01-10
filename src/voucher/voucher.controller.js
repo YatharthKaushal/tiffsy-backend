@@ -3,6 +3,10 @@ import Subscription from "../../schema/subscription.schema.js";
 import Kitchen from "../../schema/kitchen.schema.js";
 import AuditLog from "../../schema/auditLog.schema.js";
 import { sendResponse } from "../../utils/response.utils.js";
+import {
+  redeemVouchersWithTransaction,
+  restoreVouchersForOrder,
+} from "../../services/voucher.service.js";
 
 /**
  * Voucher Controller
@@ -342,101 +346,85 @@ export const checkVoucherEligibility = async (req, res) => {
 
 /**
  * Redeem vouchers (internal API for order service)
+ * Uses voucher service for atomic transaction with subscription sync
  *
  * POST /api/vouchers/redeem
+ * @body {ObjectId} userId - User ID
+ * @body {ObjectId} orderId - Order ID
+ * @body {ObjectId} kitchenId - Kitchen ID
+ * @body {string} mealWindow - LUNCH or DINNER
+ * @body {number} voucherCount - Number of vouchers to redeem
+ * @returns {Object} { redeemedVouchers: ObjectId[], count: number }
  */
 export const redeemVouchers = async (req, res) => {
   try {
     const { userId, orderId, kitchenId, mealWindow, voucherCount } = req.body;
 
-    // Check cutoff
-    const cutoffInfo = checkCutoff(mealWindow);
-    if (cutoffInfo.isPastCutoff) {
-      return sendResponse(res, 400, cutoffInfo.message);
+    // Use service function for atomic redemption with subscription sync
+    const result = await redeemVouchersWithTransaction(
+      userId,
+      voucherCount,
+      mealWindow,
+      orderId,
+      kitchenId
+    );
+
+    if (!result.success) {
+      return sendResponse(res, 400, false, result.error);
     }
 
-    // Get available vouchers (FIFO by expiry date)
-    const vouchers = await getAvailableVouchers(userId, voucherCount);
-
-    if (vouchers.length < voucherCount) {
-      return sendResponse(
-        res,
-        400,
-        `Only ${vouchers.length} vouchers available, requested ${voucherCount}`
-      );
-    }
-
-    // Redeem vouchers
-    const redeemedIds = [];
-    const now = new Date();
-
-    for (const voucher of vouchers) {
-      voucher.status = "REDEEMED";
-      voucher.redeemedAt = now;
-      voucher.redeemedOrderId = orderId;
-      voucher.redeemedKitchenId = kitchenId;
-      voucher.redeemedMealWindow = mealWindow;
-      await voucher.save();
-      redeemedIds.push(voucher._id);
-    }
-
-    console.log(`> ${voucherCount} vouchers redeemed for order ${orderId}`);
-
-    return sendResponse(res, 200, "Vouchers redeemed", {
-      redeemedVouchers: redeemedIds,
-      count: redeemedIds.length,
+    return sendResponse(res, 200, true, "Vouchers redeemed", {
+      redeemedVouchers: result.vouchers,
+      count: result.vouchers.length,
     });
   } catch (error) {
     console.log("> Redeem vouchers error:", error);
-    return sendResponse(res, 500, "Server error");
+    return sendResponse(res, 500, false, "Server error");
   }
 };
 
 /**
  * Restore vouchers after order cancellation (internal API)
+ * Uses voucher service for atomic transaction with subscription sync
  *
  * POST /api/vouchers/restore
+ * @body {ObjectId} orderId - Order ID to restore vouchers for
+ * @body {string} reason - Reason for restoration
+ * @returns {Object} { restoredVouchers: ObjectId[], count: number }
  */
 export const restoreVouchers = async (req, res) => {
   try {
     const { orderId, reason } = req.body;
 
-    // Find vouchers redeemed for this order
+    // Find voucher IDs for this order
     const vouchers = await Voucher.find({
       redeemedOrderId: orderId,
       status: "REDEEMED",
-    });
+    }).select("_id");
 
     if (vouchers.length === 0) {
-      return sendResponse(res, 200, "No vouchers to restore", {
+      return sendResponse(res, 200, true, "No vouchers to restore", {
         restoredVouchers: [],
         count: 0,
       });
     }
 
-    // Restore vouchers
-    const restoredIds = [];
-    const now = new Date();
+    const voucherIds = vouchers.map((v) => v._id);
 
-    for (const voucher of vouchers) {
-      voucher.status = "RESTORED";
-      voucher.restoredAt = now;
-      voucher.restorationReason = reason;
-      await voucher.save();
-      restoredIds.push(voucher._id);
+    // Use service function for atomic restoration with subscription sync
+    const result = await restoreVouchersForOrder(voucherIds, reason);
+
+    if (!result.success) {
+      return sendResponse(res, 500, false, result.error);
     }
 
-    console.log(
-      `> ${restoredIds.length} vouchers restored for order ${orderId}`
-    );
-
-    return sendResponse(res, 200, "Vouchers restored", {
-      restoredVouchers: restoredIds,
-      count: restoredIds.length,
+    return sendResponse(res, 200, true, "Vouchers restored", {
+      restoredVouchers: voucherIds,
+      count: result.count,
     });
   } catch (error) {
     console.log("> Restore vouchers error:", error);
-    return sendResponse(res, 500, "Server error");
+    return sendResponse(res, 500, false, "Server error");
   }
 };
 
@@ -604,61 +592,66 @@ export const expireVouchers = async (req, res) => {
 
 /**
  * Admin-initiated voucher restoration
+ * Uses forceRestore=true to restore even expired vouchers
  *
  * POST /api/vouchers/admin/restore
+ * @body {ObjectId[]} voucherIds - Specific voucher IDs to restore (optional)
+ * @body {ObjectId} orderId - Order ID to restore vouchers for (optional, alternative to voucherIds)
+ * @body {string} reason - Reason for restoration
+ * @returns {Object} { restoredVouchers: ObjectId[], count: number }
  */
 export const adminRestoreVouchers = async (req, res) => {
   try {
     const { voucherIds, orderId, reason } = req.body;
 
-    let vouchers;
+    let targetVoucherIds;
 
+    // Determine which vouchers to restore
     if (voucherIds && voucherIds.length > 0) {
-      vouchers = await Voucher.find({
+      const vouchers = await Voucher.find({
         _id: { $in: voucherIds },
         status: "REDEEMED",
-      });
+      }).select("_id");
+      targetVoucherIds = vouchers.map((v) => v._id);
     } else if (orderId) {
-      vouchers = await Voucher.find({
+      const vouchers = await Voucher.find({
         redeemedOrderId: orderId,
         status: "REDEEMED",
-      });
+      }).select("_id");
+      targetVoucherIds = vouchers.map((v) => v._id);
     }
 
-    if (!vouchers || vouchers.length === 0) {
-      return sendResponse(res, 404, "No redeemed vouchers found");
+    if (!targetVoucherIds || targetVoucherIds.length === 0) {
+      return sendResponse(res, 404, false, "No redeemed vouchers found");
     }
 
-    // Restore vouchers
-    const restoredIds = [];
-    const now = new Date();
+    // Use service function with forceRestore=true (admin can restore expired vouchers)
+    const result = await restoreVouchersForOrder(
+      targetVoucherIds,
+      `Admin: ${reason}`,
+      true // forceRestore
+    );
 
-    for (const voucher of vouchers) {
-      voucher.status = "RESTORED";
-      voucher.restoredAt = now;
-      voucher.restorationReason = `Admin: ${reason}`;
-      await voucher.save();
-      restoredIds.push(voucher._id);
+    if (!result.success) {
+      return sendResponse(res, 500, false, result.error);
     }
 
     // Log audit entry
     await AuditLog.logFromRequest(req, {
       action: "UPDATE",
       entityType: "Voucher",
-      entityId: restoredIds[0],
-      newValue: { status: "RESTORED", count: restoredIds.length },
-      description: `Admin restored ${restoredIds.length} vouchers. Reason: ${reason}`,
+      entityId: targetVoucherIds[0],
+      newValue: { status: "RESTORED", count: result.count },
+      description: `Admin restored ${result.count} vouchers. Reason: ${reason}`,
     });
 
-    console.log(`> Admin restored ${restoredIds.length} vouchers`);
-
-    return sendResponse(res, 200, "Vouchers restored by admin", {
-      restoredVouchers: restoredIds,
-      count: restoredIds.length,
+    return sendResponse(res, 200, true, "Vouchers restored by admin", {
+      restoredVouchers: targetVoucherIds,
+      count: result.count,
     });
   } catch (error) {
     console.log("> Admin restore vouchers error:", error);
-    return sendResponse(res, 500, "Server error");
+    return sendResponse(res, 500, false, "Server error");
   }
 };
 

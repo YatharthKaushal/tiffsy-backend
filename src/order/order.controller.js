@@ -528,9 +528,18 @@ export async function createOrder(req, res) {
     const orderNumber = Order.generateOrderNumber();
 
     // Determine payment status
+    // In non-production environments, auto-confirm payments for testing
+    const isDevMode = process.env.NODE_ENV !== "production";
     let paymentStatus = "PENDING";
+
     if (pricing.amountToPay === 0) {
       paymentStatus = "PAID"; // Fully covered by vouchers
+    } else if (isDevMode) {
+      paymentStatus = "PAID"; // Auto-confirm in dev mode (no payment gateway)
+      log.info("createOrder", "Auto-confirming payment (dev mode)", {
+        amountToPay: pricing.amountToPay,
+        environment: process.env.NODE_ENV || "development",
+      });
     }
 
     // Create order
@@ -583,6 +592,8 @@ export async function createOrder(req, res) {
     await order.save();
 
     const duration = Date.now() - startTime;
+    const paymentAutoConfirmed = isDevMode && pricing.amountToPay > 0;
+
     log.event("ORDER_CREATED", "New order placed successfully", {
       orderId: order._id.toString(),
       orderNumber: order.orderNumber,
@@ -594,6 +605,7 @@ export async function createOrder(req, res) {
       amountToPay: pricing.amountToPay,
       vouchersUsed: redeemedVouchers.length,
       couponApplied: couponDiscount?.couponCode || null,
+      paymentAutoConfirmed,
       duration: `${duration}ms`,
     });
     log.response("createOrder", 201, true, duration);
@@ -602,7 +614,8 @@ export async function createOrder(req, res) {
       order,
       vouchersUsed: redeemedVouchers.length,
       amountToPay: pricing.amountToPay,
-      paymentRequired: pricing.amountToPay > 0,
+      paymentRequired: !isDevMode && pricing.amountToPay > 0,
+      paymentAutoConfirmed,
     });
   } catch (error) {
     const duration = Date.now() - startTime;

@@ -1,12 +1,31 @@
 import mongoose from "mongoose";
 import Voucher from "../schema/voucher.schema.js";
+import Subscription from "../schema/subscription.schema.js";
 import { checkCutoffTime } from "./config.service.js";
 
 /**
  * Voucher Service
  * Handles voucher redemption and restoration with MongoDB transactions
  * Ensures atomic operations to prevent race conditions
+ *
+ * IMPORTANT: This service maintains sync between:
+ * - Individual Voucher documents (status: AVAILABLE -> REDEEMED -> RESTORED)
+ * - Subscription.vouchersUsed counter (incremented on redeem, decremented on restore)
  */
+
+/**
+ * Helper: Group vouchers by subscriptionId and count
+ * @param {Array} vouchers - Array of voucher documents
+ * @returns {Map<string, number>} Map of subscriptionId -> count
+ */
+function groupVouchersBySubscription(vouchers) {
+  const subscriptionCounts = new Map();
+  for (const voucher of vouchers) {
+    const subId = voucher.subscriptionId.toString();
+    subscriptionCounts.set(subId, (subscriptionCounts.get(subId) || 0) + 1);
+  }
+  return subscriptionCounts;
+}
 
 /**
  * Redeem vouchers for an order using MongoDB transactions
@@ -94,9 +113,19 @@ export async function redeemVouchersWithTransaction(userId, count, mealWindow, o
       };
     }
 
+    // Update subscription vouchersUsed counters (grouped by subscription)
+    const subscriptionCounts = groupVouchersBySubscription(availableVouchers);
+    for (const [subscriptionId, voucherCount] of subscriptionCounts) {
+      await Subscription.updateOne(
+        { _id: subscriptionId },
+        { $inc: { vouchersUsed: voucherCount } },
+        { session }
+      );
+    }
+
     await session.commitTransaction();
 
-    console.log(`> VoucherService: Redeemed ${count} vouchers for order ${orderId}`);
+    console.log(`> VoucherService: Redeemed ${count} vouchers for order ${orderId}, updated ${subscriptionCounts.size} subscription(s)`);
 
     return {
       success: true,
@@ -114,7 +143,7 @@ export async function redeemVouchersWithTransaction(userId, count, mealWindow, o
 
 /**
  * Restore vouchers for a cancelled/rejected order
- * Only restores if order was cancelled within meal window (for voucher orders)
+ * Also decrements Subscription.vouchersUsed counter to maintain sync
  *
  * @param {Array<ObjectId>} voucherIds - Voucher IDs to restore
  * @param {string} reason - Restoration reason
@@ -126,7 +155,11 @@ export async function restoreVouchersForOrder(voucherIds, reason, forceRestore =
     return { success: true, count: 0, error: null };
   }
 
+  const session = await mongoose.startSession();
+
   try {
+    session.startTransaction();
+
     // Map reason string to valid enum value
     let restorationReason = "OTHER";
     if (reason.toLowerCase().includes("cancelled")) {
@@ -145,39 +178,69 @@ export async function restoreVouchersForOrder(voucherIds, reason, forceRestore =
       status: "REDEEMED",
     };
 
-    // If not forced, only restore vouchers that haven't expired yet
     if (!forceRestore) {
       query.expiryDate = { $gt: now };
     }
 
-    const result = await Voucher.updateMany(query, {
-      $set: {
-        status: "RESTORED",
-        restoredAt: now,
-        restorationReason,
-      },
-      $unset: {
-        redeemedAt: 1,
-        redeemedOrderId: 1,
-        redeemedKitchenId: 1,
-        redeemedMealWindow: 1,
-      },
-    });
+    // First, find vouchers to get their subscriptionIds before updating
+    const vouchersToRestore = await Voucher.find(query)
+      .select("_id subscriptionId")
+      .session(session);
 
-    console.log(`> VoucherService: Restored ${result.modifiedCount} vouchers - ${reason}`);
+    if (vouchersToRestore.length === 0) {
+      await session.commitTransaction();
+      return { success: true, count: 0, error: null };
+    }
+
+    // Update voucher status to RESTORED
+    const voucherIdsToUpdate = vouchersToRestore.map((v) => v._id);
+    await Voucher.updateMany(
+      { _id: { $in: voucherIdsToUpdate } },
+      {
+        $set: {
+          status: "RESTORED",
+          restoredAt: now,
+          restorationReason,
+        },
+        $unset: {
+          redeemedAt: 1,
+          redeemedOrderId: 1,
+          redeemedKitchenId: 1,
+          redeemedMealWindow: 1,
+        },
+      },
+      { session }
+    );
+
+    // Decrement subscription vouchersUsed counters (grouped by subscription)
+    const subscriptionCounts = groupVouchersBySubscription(vouchersToRestore);
+    for (const [subscriptionId, voucherCount] of subscriptionCounts) {
+      await Subscription.updateOne(
+        { _id: subscriptionId },
+        { $inc: { vouchersUsed: -voucherCount } },
+        { session }
+      );
+    }
+
+    await session.commitTransaction();
+
+    console.log(`> VoucherService: Restored ${vouchersToRestore.length} vouchers, updated ${subscriptionCounts.size} subscription(s) - ${reason}`);
 
     return {
       success: true,
-      count: result.modifiedCount,
+      count: vouchersToRestore.length,
       error: null,
     };
   } catch (error) {
+    await session.abortTransaction();
     console.log(`> VoucherService: Restoration failed - ${error.message}`);
     return {
       success: false,
       count: 0,
       error: error.message,
     };
+  } finally {
+    session.endSession();
   }
 }
 

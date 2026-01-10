@@ -48,7 +48,7 @@ export const authMiddleware = async (req, res, next) => {
     const user = await User.findOne({
       $or: [{ firebaseUid: uid }, { phone }],
       status: { $ne: "DELETED" },
-    }).lean();
+    });
 
     if (!user) {
       console.log(`> Auth error: User not found for uid: ${uid}`);
@@ -288,7 +288,7 @@ export const optionalAuthMiddleware = async (req, res, next) => {
     const user = await User.findOne({
       $or: [{ firebaseUid: uid }, { phone }],
       status: "ACTIVE",
-    }).lean();
+    });
 
     req.user = user || null;
     req.firebaseUid = uid;
@@ -337,7 +337,7 @@ export const jwtAuthMiddleware = async (req, res, next) => {
     const user = await User.findOne({
       _id: userId,
       status: { $ne: "DELETED" },
-    }).lean();
+    });
 
     if (!user) {
       console.log(`> JWT auth error: User not found for id: ${userId}`);
@@ -417,7 +417,7 @@ export const adminAuthMiddleware = async (req, res, next) => {
       const user = await User.findOne({
         _id: userId,
         status: { $ne: "DELETED" },
-      }).lean();
+      });
 
       if (user && user.status === "ACTIVE" && user.role === role) {
         req.user = user;
@@ -439,7 +439,7 @@ export const adminAuthMiddleware = async (req, res, next) => {
     const user = await User.findOne({
       $or: [{ firebaseUid: uid }, { phone }],
       status: { $ne: "DELETED" },
-    }).lean();
+    });
 
     if (!user) {
       console.log(`> Admin auth error: User not found for Firebase uid: ${uid}`);

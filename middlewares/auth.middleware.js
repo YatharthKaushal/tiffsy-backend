@@ -392,6 +392,84 @@ export const jwtAuthMiddleware = async (req, res, next) => {
 };
 
 /**
+ * Combined auth middleware for admin routes
+ * Tries JWT first (for admin web portal), falls back to Firebase (for mobile apps)
+ * This allows admins to authenticate via either method
+ */
+export const adminAuthMiddleware = async (req, res, next) => {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    console.log("> Admin auth error: No token provided");
+    return sendResponse(res, 401, "Unauthorized", null, "No token provided");
+  }
+
+  const token = authHeader.split(" ")[1];
+
+  // Try JWT verification first (primary method for admin web portal)
+  try {
+    const jwtSecret = process.env.JWT_SECRET;
+
+    if (jwtSecret) {
+      const decoded = jwt.verify(token, jwtSecret);
+      const { userId, role } = decoded;
+
+      const user = await User.findOne({
+        _id: userId,
+        status: { $ne: "DELETED" },
+      }).lean();
+
+      if (user && user.status === "ACTIVE" && user.role === role) {
+        req.user = user;
+        console.log(`> Admin auth success (JWT): ${user.username || user._id}`);
+        return next();
+      }
+    }
+  } catch (jwtError) {
+    // JWT verification failed, will try Firebase next
+    console.log(`> JWT verification failed, trying Firebase: ${jwtError.message}`);
+  }
+
+  // Fallback to Firebase verification (for mobile admin access)
+  try {
+    const decodedToken = await firebaseAdmin.auth().verifyIdToken(token);
+    const { uid, phone_number } = decodedToken;
+    const phone = normalizePhone(phone_number);
+
+    const user = await User.findOne({
+      $or: [{ firebaseUid: uid }, { phone }],
+      status: { $ne: "DELETED" },
+    }).lean();
+
+    if (!user) {
+      console.log(`> Admin auth error: User not found for Firebase uid: ${uid}`);
+      return sendResponse(res, 401, "Unauthorized", null, "User not found");
+    }
+
+    if (user.status === "SUSPENDED") {
+      console.log(`> Admin auth error: User suspended: ${user._id}`);
+      return sendResponse(res, 403, "Account suspended", null, "Your account has been suspended");
+    }
+
+    if (user.status === "INACTIVE") {
+      console.log(`> Admin auth error: User inactive: ${user._id}`);
+      return sendResponse(res, 403, "Account inactive", null, "Your account is inactive");
+    }
+
+    req.user = user;
+    req.firebaseUid = uid;
+    console.log(`> Admin auth success (Firebase): ${user._id}`);
+    return next();
+  } catch (firebaseError) {
+    console.log(`> Firebase verification also failed: ${firebaseError.message}`);
+  }
+
+  // Both methods failed
+  console.log("> Admin auth error: Both JWT and Firebase verification failed");
+  return sendResponse(res, 401, "Unauthorized", null, "Authentication failed");
+};
+
+/**
  * Middleware to check if kitchen staff has access to specific kitchen
  * Must be used after authMiddleware
  * @param {string} kitchenIdParam - Name of the param containing kitchen ID (default: 'kitchenId')
@@ -453,5 +531,6 @@ export default {
   firebaseAuthMiddleware,
   optionalAuthMiddleware,
   jwtAuthMiddleware,
+  adminAuthMiddleware,
   kitchenAccessMiddleware,
 };

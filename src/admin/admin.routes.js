@@ -1,6 +1,6 @@
 import { Router } from "express";
 import adminController from "./admin.controller.js";
-import { authMiddleware, adminMiddleware, roleMiddleware } from "../../middlewares/auth.middleware.js";
+import { adminAuthMiddleware, adminMiddleware, roleMiddleware } from "../../middlewares/auth.middleware.js";
 import { validateBody, validateQuery, validateParams } from "../../middlewares/validate.middleware.js";
 import {
   createUserSchema,
@@ -29,7 +29,7 @@ const idParamSchema = Joi.object({
 
 router.get(
   "/dashboard",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   adminController.getDashboard
 );
@@ -40,14 +40,14 @@ router.get(
 
 router.get(
   "/config",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   adminController.getSystemConfig
 );
 
 router.put(
   "/config",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateBody(updateSystemConfigSchema),
   adminController.updateSystemConfig
@@ -59,14 +59,14 @@ router.put(
 
 router.get(
   "/guidelines",
-  authMiddleware,
+  adminAuthMiddleware,
   roleMiddleware(["ADMIN", "KITCHEN_STAFF"]),
   adminController.getGuidelines
 );
 
 router.put(
   "/guidelines",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateBody(updateGuidelinesSchema),
   adminController.updateGuidelines
@@ -78,7 +78,7 @@ router.put(
 
 router.get(
   "/reports",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateQuery(queryReportsSchema),
   adminController.getReports
@@ -86,7 +86,7 @@ router.get(
 
 router.get(
   "/reports/export",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateQuery(exportReportSchema),
   adminController.exportReport
@@ -98,7 +98,7 @@ router.get(
 
 router.get(
   "/audit-logs",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateQuery(queryAuditLogsSchema),
   adminController.getAuditLogs
@@ -106,7 +106,7 @@ router.get(
 
 router.get(
   "/audit-logs/:id",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateParams(idParamSchema),
   adminController.getAuditLogById
@@ -118,7 +118,7 @@ router.get(
 
 router.post(
   "/users",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateBody(createUserSchema),
   adminController.createUser
@@ -126,7 +126,7 @@ router.post(
 
 router.get(
   "/users",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateQuery(queryUsersSchema),
   adminController.getUsers
@@ -134,7 +134,7 @@ router.get(
 
 router.get(
   "/users/:id",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateParams(idParamSchema),
   adminController.getUserById
@@ -142,7 +142,7 @@ router.get(
 
 router.put(
   "/users/:id",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateParams(idParamSchema),
   validateBody(updateUserSchema),
@@ -151,7 +151,7 @@ router.put(
 
 router.delete(
   "/users/:id",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateParams(idParamSchema),
   adminController.deleteUser
@@ -159,7 +159,7 @@ router.delete(
 
 router.patch(
   "/users/:id/activate",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateParams(idParamSchema),
   adminController.activateUser
@@ -167,7 +167,7 @@ router.patch(
 
 router.patch(
   "/users/:id/deactivate",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateParams(idParamSchema),
   adminController.deactivateUser
@@ -175,7 +175,7 @@ router.patch(
 
 router.patch(
   "/users/:id/suspend",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateParams(idParamSchema),
   validateBody(suspendUserSchema),
@@ -184,7 +184,7 @@ router.patch(
 
 router.post(
   "/users/:id/reset-password",
-  authMiddleware,
+  adminAuthMiddleware,
   adminMiddleware,
   validateParams(idParamSchema),
   validateBody(resetPasswordSchema),

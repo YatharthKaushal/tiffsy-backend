@@ -17,6 +17,7 @@ import orderRoutes from "./src/order/order.routes.js";
 import deliveryRoutes from "./src/delivery/delivery.routes.js";
 import adminRoutes from "./src/admin/admin.routes.js";
 import refundRoutes from "./src/refund/refund.routes.js";
+import paymentRoutes from "./src/payment/payment.routes.js";
 
 const router = Router();
 
@@ -117,5 +118,12 @@ router.use("/admin", adminRoutes);
  * @desc Refund management routes
  */
 router.use("/refunds", refundRoutes);
+
+/**
+ * @route /api/payment
+ * @desc Payment gateway routes (Stripe, Razorpay)
+ * Note: Webhook routes in this module must receive raw body for signature verification
+ */
+router.use("/payment", paymentRoutes);
 
 export default router;

@@ -477,9 +477,13 @@ export const getActivePlans = async (req, res) => {
 // ============================================================================
 
 /**
- * Purchase subscription
+ * Purchase subscription (direct flow - payment already confirmed)
  *
  * POST /api/subscriptions/purchase
+ *
+ * Note: For payment gateway flow, use /api/payment/subscription/initiate instead.
+ * This endpoint is for direct purchase when payment is handled externally
+ * or for testing/development purposes.
  */
 export const purchaseSubscription = async (req, res) => {
   try {
@@ -506,15 +510,28 @@ export const purchaseSubscription = async (req, res) => {
       return sendResponse(res, 400, "Plan has expired");
     }
 
-    // Check for existing active subscription for this plan
+    // Check for existing active or pending subscription for this plan
     const existingSubscription = await Subscription.findOne({
       userId,
       planId,
-      status: "ACTIVE",
+      status: { $in: ["ACTIVE", "PENDING"] },
       voucherExpiryDate: { $gte: now },
     });
 
     if (existingSubscription) {
+      if (existingSubscription.status === "PENDING") {
+        return sendResponse(
+          res,
+          409,
+          "You have a pending subscription for this plan. Please complete the payment.",
+          {
+            existingSubscription: {
+              _id: existingSubscription._id,
+              status: existingSubscription.status,
+            },
+          }
+        );
+      }
       return sendResponse(
         res,
         409,
@@ -542,7 +559,7 @@ export const purchaseSubscription = async (req, res) => {
       voucherExpiryDate.getDate() + plan.voucherValidityDays
     );
 
-    // Create subscription
+    // Create subscription (ACTIVE since payment is confirmed)
     const subscription = new Subscription({
       userId,
       planId,
@@ -566,7 +583,7 @@ export const purchaseSubscription = async (req, res) => {
 
     await subscription.save();
 
-    // Issue vouchers
+    // Issue vouchers immediately (payment already confirmed)
     const voucherResult = await issueVouchers(
       userId,
       subscription._id,

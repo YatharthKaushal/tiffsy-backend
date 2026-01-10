@@ -3,6 +3,10 @@ import Order from "../../schema/order.schema.js";
 import Voucher from "../../schema/voucher.schema.js";
 import AuditLog from "../../schema/auditLog.schema.js";
 import { sendResponse } from "../../utils/response.utils.js";
+import {
+  initiateRefund as initiatePaymentRefund,
+  isInitialized as isPaymentServiceInitialized,
+} from "../../services/payment/payment.service.js";
 
 /**
  * ============================================================================
@@ -31,21 +35,49 @@ function generateRefundNumber() {
 }
 
 /**
- * Call payment gateway refund API (mock implementation)
+ * Call payment gateway refund API
+ * Uses the payment service if initialized, otherwise falls back to mock
+ *
  * @param {string} originalPaymentId - Original payment ID
- * @param {number} amount - Refund amount
+ * @param {number} amount - Refund amount in rupees
+ * @param {string} reason - Refund reason
  * @returns {Promise<{success: boolean, gatewayRefundId: string|null, error: string|null}>}
  */
-async function callPaymentGatewayRefund(originalPaymentId, amount) {
-  // Mock implementation - in production, integrate with RazorPay/Stripe
-  // Simulate API call delay
+async function callPaymentGatewayRefund(originalPaymentId, amount, reason = "ORDER_CANCELLED") {
+  // Use payment service if initialized
+  if (isPaymentServiceInitialized() && originalPaymentId && originalPaymentId !== "N/A") {
+    try {
+      const result = await initiatePaymentRefund({
+        paymentId: originalPaymentId,
+        amount,
+        reason,
+        metadata: {},
+      });
+
+      return {
+        success: result.status !== "failed",
+        gatewayRefundId: result.id,
+        error: result.status === "failed" ? "Refund failed at gateway" : null,
+      };
+    } catch (error) {
+      console.error("> callPaymentGatewayRefund: Gateway error:", error.message);
+      return {
+        success: false,
+        gatewayRefundId: null,
+        error: error.message || "Gateway error: Transaction failed",
+      };
+    }
+  }
+
+  // Fallback to mock implementation for testing/development
+  console.log("> callPaymentGatewayRefund: Using mock implementation");
   await new Promise((resolve) => setTimeout(resolve, 100));
 
-  // Simulate 95% success rate
+  // Simulate 95% success rate in mock mode
   const isSuccess = Math.random() > 0.05;
 
   if (isSuccess) {
-    const gatewayRefundId = `rfnd_${Date.now()}_${Math.random()
+    const gatewayRefundId = `mock_rfnd_${Date.now()}_${Math.random()
       .toString(36)
       .substring(2, 8)}`;
     return { success: true, gatewayRefundId, error: null };
@@ -54,7 +86,7 @@ async function callPaymentGatewayRefund(originalPaymentId, amount) {
   return {
     success: false,
     gatewayRefundId: null,
-    error: "Gateway error: Transaction failed",
+    error: "Mock gateway error: Transaction failed",
   };
 }
 

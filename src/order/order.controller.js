@@ -20,6 +20,11 @@ import {
   restoreVouchersForOrder,
   getAvailableVoucherCount,
 } from "../../services/voucher.service.js";
+import {
+  createOrderPayment,
+  getProviderName,
+  isInitialized as isPaymentServiceInitialized,
+} from "../../services/payment/payment.service.js";
 
 // Create logger instance for this controller
 const log = createLogger("OrderController");
@@ -528,18 +533,11 @@ export async function createOrder(req, res) {
     const orderNumber = Order.generateOrderNumber();
 
     // Determine payment status
-    // In non-production environments, auto-confirm payments for testing
-    const isDevMode = process.env.NODE_ENV !== "production";
     let paymentStatus = "PENDING";
+    let paymentIntent = null;
 
     if (pricing.amountToPay === 0) {
       paymentStatus = "PAID"; // Fully covered by vouchers
-    } else if (isDevMode) {
-      paymentStatus = "PAID"; // Auto-confirm in dev mode (no payment gateway)
-      log.info("createOrder", "Auto-confirming payment (dev mode)", {
-        amountToPay: pricing.amountToPay,
-        environment: process.env.NODE_ENV || "development",
-      });
     }
 
     // Create order
@@ -591,8 +589,39 @@ export async function createOrder(req, res) {
 
     await order.save();
 
+    // Create payment intent if payment is required
+    if (pricing.amountToPay > 0 && isPaymentServiceInitialized()) {
+      try {
+        const customer = {
+          id: userId.toString(),
+          name: req.user.name || "",
+          email: req.user.email || "",
+          phone: req.user.phone || "",
+        };
+
+        paymentIntent = await createOrderPayment({
+          orderId: order._id.toString(),
+          amount: pricing.amountToPay,
+          customer,
+          metadata: {
+            orderNumber: order.orderNumber,
+            menuType,
+            mealWindow: mealWindow || null,
+          },
+        });
+
+        log.info("createOrder", "Payment intent created", {
+          orderId: order._id.toString(),
+          paymentId: paymentIntent.id,
+          provider: getProviderName(),
+        });
+      } catch (paymentError) {
+        log.error("createOrder", "Failed to create payment intent", { error: paymentError });
+        // Order is created but payment intent failed - customer can retry via /payment/order/:orderId/initiate
+      }
+    }
+
     const duration = Date.now() - startTime;
-    const paymentAutoConfirmed = isDevMode && pricing.amountToPay > 0;
 
     log.event("ORDER_CREATED", "New order placed successfully", {
       orderId: order._id.toString(),
@@ -605,18 +634,29 @@ export async function createOrder(req, res) {
       amountToPay: pricing.amountToPay,
       vouchersUsed: redeemedVouchers.length,
       couponApplied: couponDiscount?.couponCode || null,
-      paymentAutoConfirmed,
+      paymentRequired: pricing.amountToPay > 0,
       duration: `${duration}ms`,
     });
     log.response("createOrder", 201, true, duration);
 
-    return sendResponse(res, 201, true, "Order placed successfully", {
+    // Build response
+    const response = {
       order,
       vouchersUsed: redeemedVouchers.length,
       amountToPay: pricing.amountToPay,
-      paymentRequired: !isDevMode && pricing.amountToPay > 0,
-      paymentAutoConfirmed,
-    });
+      paymentRequired: pricing.amountToPay > 0,
+    };
+
+    // Include payment info if payment intent was created
+    if (paymentIntent) {
+      response.payment = {
+        paymentId: paymentIntent.id,
+        clientSecret: paymentIntent.clientSecret,
+        provider: getProviderName(),
+      };
+    }
+
+    return sendResponse(res, 201, true, "Order placed successfully", response);
   } catch (error) {
     const duration = Date.now() - startTime;
     log.error("createOrder", "Failed to place order", { error, duration: `${duration}ms` });

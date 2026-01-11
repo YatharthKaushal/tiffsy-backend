@@ -714,7 +714,7 @@ export async function getDashboard(req, res) {
 
     // Recent activity
     const recentActivity = await AuditLog.find()
-      .populate("performedBy", "name role")
+      .populate("userId", "name role")
       .sort({ createdAt: -1 })
       .limit(10);
 

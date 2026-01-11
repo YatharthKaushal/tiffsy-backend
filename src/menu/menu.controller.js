@@ -557,7 +557,7 @@ export const disableMenuItem = async (req, res) => {
     // Log audit entry
     await AuditLog.logFromRequest(req, {
       action: "UPDATE",
-      entityType: "MenuItem",
+      entityType: "MENU_ITEM",
       entityId: menuItem._id,
       oldValue: { status: oldStatus },
       newValue: { status: "DISABLED_BY_ADMIN", reason },
@@ -596,7 +596,7 @@ export const enableMenuItem = async (req, res) => {
     // Log audit entry
     await AuditLog.logFromRequest(req, {
       action: "UPDATE",
-      entityType: "MenuItem",
+      entityType: "MENU_ITEM",
       entityId: menuItem._id,
       oldValue: { status: oldStatus },
       newValue: { status: "ACTIVE" },

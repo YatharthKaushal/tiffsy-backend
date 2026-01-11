@@ -152,7 +152,7 @@ export const createKitchen = async (req, res) => {
     // Log audit entry
     await AuditLog.logFromRequest(req, {
       action: "CREATE",
-      entityType: "Kitchen",
+      entityType: "KITCHEN",
       entityId: kitchen._id,
       newValue: kitchen.toObject(),
       description: `Created ${type} kitchen: ${name}`,
@@ -325,7 +325,7 @@ export const updateKitchen = async (req, res) => {
     // Log audit entry
     await AuditLog.logFromRequest(req, {
       action: "UPDATE",
-      entityType: "Kitchen",
+      entityType: "KITCHEN",
       entityId: kitchen._id,
       oldValue,
       newValue: kitchen.toObject(),
@@ -377,7 +377,7 @@ export const updateKitchenType = async (req, res) => {
     // Log audit entry
     await AuditLog.logFromRequest(req, {
       action: "UPDATE",
-      entityType: "Kitchen",
+      entityType: "KITCHEN",
       entityId: kitchen._id,
       oldValue: { type: oldType },
       newValue: { type },
@@ -421,7 +421,7 @@ export const updateKitchenFlags = async (req, res) => {
     // Log audit entry
     await AuditLog.logFromRequest(req, {
       action: "UPDATE",
-      entityType: "Kitchen",
+      entityType: "KITCHEN",
       entityId: kitchen._id,
       oldValue: oldFlags,
       newValue: {
@@ -487,7 +487,7 @@ export const updateZonesServed = async (req, res) => {
     // Log audit entry
     await AuditLog.logFromRequest(req, {
       action: "UPDATE",
-      entityType: "Kitchen",
+      entityType: "KITCHEN",
       entityId: kitchen._id,
       oldValue: { zonesServed: oldZones },
       newValue: { zonesServed },
@@ -531,7 +531,7 @@ export const activateKitchen = async (req, res) => {
     // Log audit entry
     await AuditLog.logFromRequest(req, {
       action: "UPDATE",
-      entityType: "Kitchen",
+      entityType: "KITCHEN",
       entityId: kitchen._id,
       oldValue: { status: oldStatus },
       newValue: { status: "ACTIVE" },
@@ -575,7 +575,7 @@ export const deactivateKitchen = async (req, res) => {
     // Log audit entry
     await AuditLog.logFromRequest(req, {
       action: "UPDATE",
-      entityType: "Kitchen",
+      entityType: "KITCHEN",
       entityId: kitchen._id,
       oldValue: { status: oldStatus },
       newValue: { status: "INACTIVE" },
@@ -624,7 +624,7 @@ export const suspendKitchen = async (req, res) => {
     // Log audit entry with reason
     await AuditLog.logFromRequest(req, {
       action: "UPDATE",
-      entityType: "Kitchen",
+      entityType: "KITCHEN",
       entityId: kitchen._id,
       oldValue: { status: oldStatus },
       newValue: { status: "SUSPENDED", reason },
@@ -693,7 +693,7 @@ export const deleteKitchen = async (req, res) => {
     // Log audit entry
     await AuditLog.logFromRequest(req, {
       action: "DELETE",
-      entityType: "Kitchen",
+      entityType: "KITCHEN",
       entityId: kitchen._id,
       oldValue: { status: oldStatus },
       newValue: { status: "DELETED" },

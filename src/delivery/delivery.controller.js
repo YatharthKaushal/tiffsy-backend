@@ -1012,11 +1012,14 @@ export async function reassignBatch(req, res) {
 
     // Log audit
     await AuditLog.create({
-      action: "REASSIGN_BATCH",
+      action: "ASSIGN",
       entityType: "DELIVERY_BATCH",
       entityId: batch._id,
-      performedBy: adminId,
-      details: { previousDriver, newDriver: driverId, reason },
+      userId: adminId,
+      userRole: "ADMIN",
+      userName: req.user.name || "Admin",
+      reason: `Reassigned batch. Previous driver: ${previousDriver}, New driver: ${driverId}. ${reason}`,
+      performedAt: new Date(),
     });
 
     return sendResponse(res, 200, true, "Batch reassigned", { batch });
@@ -1069,11 +1072,14 @@ export async function cancelBatch(req, res) {
 
     // Log audit
     await AuditLog.create({
-      action: "CANCEL_BATCH",
+      action: "CANCEL",
       entityType: "DELIVERY_BATCH",
       entityId: batch._id,
-      performedBy: adminId,
-      details: { reason, ordersAffected: batch.orderIds.length },
+      userId: adminId,
+      userRole: "ADMIN",
+      userName: req.user.name || "Admin",
+      reason: `Cancelled batch. Orders affected: ${batch.orderIds.length}. ${reason}`,
+      performedAt: new Date(),
     });
 
     return sendResponse(res, 200, true, "Batch cancelled", {
@@ -1209,11 +1215,16 @@ export async function updateBatchConfig(req, res) {
 
     // Log audit
     await AuditLog.create({
-      action: "UPDATE_CONFIG",
-      entityType: "DELIVERY_CONFIG",
-      entityId: "batch_config",
-      performedBy: adminId,
-      details: { previousConfig, newConfig: BATCH_CONFIG },
+      action: "CONFIG_CHANGE",
+      entityType: "SYSTEM_CONFIG",
+      entityId: null,
+      userId: adminId,
+      userRole: "ADMIN",
+      userName: req.user.name || "Admin",
+      previousValue: previousConfig,
+      newValue: BATCH_CONFIG,
+      actionDescription: "Updated batch delivery configuration",
+      performedAt: new Date(),
     });
 
     return sendResponse(res, 200, true, "Batch configuration updated", {

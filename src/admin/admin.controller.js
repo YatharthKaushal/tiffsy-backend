@@ -944,11 +944,15 @@ export async function updateGuidelines(req, res) {
 
     // Log audit
     await AuditLog.create({
-      action: "UPDATE_GUIDELINES",
-      entityType: "GUIDELINES",
-      entityId: "guidelines",
-      performedBy: adminId,
-      details: { updatedFields: Object.keys(req.body) },
+      action: "CONFIG_CHANGE",
+      entityType: "SYSTEM_CONFIG",
+      entityId: null,
+      userId: adminId,
+      userRole: "ADMIN",
+      userName: req.user.name || "Admin",
+      newValue: { updatedFields: Object.keys(req.body) },
+      actionDescription: "Updated guidelines configuration",
+      performedAt: new Date(),
     });
 
     return sendResponse(res, 200, true, "Guidelines updated", {

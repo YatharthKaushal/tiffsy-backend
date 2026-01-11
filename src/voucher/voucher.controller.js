@@ -639,7 +639,7 @@ export const adminRestoreVouchers = async (req, res) => {
     // Log audit entry
     await AuditLog.logFromRequest(req, {
       action: "UPDATE",
-      entityType: "Voucher",
+      entityType: "VOUCHER",
       entityId: targetVoucherIds[0],
       newValue: { status: "RESTORED", count: result.count },
       description: `Admin restored ${result.count} vouchers. Reason: ${reason}`,
@@ -723,7 +723,7 @@ export const updateCutoffTimes = async (req, res) => {
     // Log audit entry
     await AuditLog.logFromRequest(req, {
       action: "UPDATE",
-      entityType: "SystemConfig",
+      entityType: "SYSTEM_CONFIG",
       entityId: null,
       oldValue: oldConfig,
       newValue: CUTOFF_CONFIG,

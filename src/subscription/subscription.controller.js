@@ -150,7 +150,7 @@ export const createPlan = async (req, res) => {
     // Log audit entry
     await AuditLog.logFromRequest(req, {
       action: "CREATE",
-      entityType: "SubscriptionPlan",
+      entityType: "SUBSCRIPTION_PLAN",
       entityId: plan._id,
       newValue: plan.toObject(),
       description: `Created subscription plan: ${name}`,
@@ -295,7 +295,7 @@ export const updatePlan = async (req, res) => {
     // Log audit entry
     await AuditLog.logFromRequest(req, {
       action: "UPDATE",
-      entityType: "SubscriptionPlan",
+      entityType: "SUBSCRIPTION_PLAN",
       entityId: plan._id,
       oldValue,
       newValue: plan.toObject(),
@@ -336,7 +336,7 @@ export const activatePlan = async (req, res) => {
     // Log audit entry
     await AuditLog.logFromRequest(req, {
       action: "UPDATE",
-      entityType: "SubscriptionPlan",
+      entityType: "SUBSCRIPTION_PLAN",
       entityId: plan._id,
       oldValue: { status: oldStatus },
       newValue: { status: "ACTIVE" },
@@ -371,7 +371,7 @@ export const deactivatePlan = async (req, res) => {
     // Log audit entry
     await AuditLog.logFromRequest(req, {
       action: "UPDATE",
-      entityType: "SubscriptionPlan",
+      entityType: "SUBSCRIPTION_PLAN",
       entityId: plan._id,
       oldValue: { status: oldStatus },
       newValue: { status: "INACTIVE" },
@@ -406,7 +406,7 @@ export const archivePlan = async (req, res) => {
     // Log audit entry
     await AuditLog.logFromRequest(req, {
       action: "UPDATE",
-      entityType: "SubscriptionPlan",
+      entityType: "SUBSCRIPTION_PLAN",
       entityId: plan._id,
       oldValue: { status: oldStatus },
       newValue: { status: "ARCHIVED" },
@@ -887,7 +887,7 @@ export const adminCancelSubscription = async (req, res) => {
     // Log audit entry
     await AuditLog.logFromRequest(req, {
       action: "UPDATE",
-      entityType: "Subscription",
+      entityType: "SUBSCRIPTION",
       entityId: subscription._id,
       oldValue: { status: "ACTIVE" },
       newValue: { status: "CANCELLED", reason },

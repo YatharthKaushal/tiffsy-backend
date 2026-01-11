@@ -918,6 +918,7 @@ export async function trackOrder(req, res) {
     const userId = req.user._id;
 
     const order = await Order.findOne({ _id: id, userId })
+      .populate("userId", "name phone")
       .populate("driverId", "name phone")
       .populate("kitchenId", "name phone");
 
@@ -929,6 +930,12 @@ export async function trackOrder(req, res) {
       status: order.status,
       statusMessage: getStatusDisplay(order.status),
       timeline: order.statusTimeline,
+      customer: order.userId
+        ? {
+            name: order.userId.name,
+            phone: order.userId.phone,
+          }
+        : null,
       driver: order.driverId
         ? {
             name: order.driverId.name,

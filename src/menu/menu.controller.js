@@ -1,8 +1,8 @@
 import MenuItem from "../../schema/menuItem.schema.js";
 import Addon from "../../schema/addon.schema.js";
 import Kitchen from "../../schema/kitchen.schema.js";
-import AuditLog from "../../schema/auditLog.schema.js";
 import { sendResponse } from "../../utils/response.utils.js";
+import { safeAuditLog } from "../../utils/audit.utils.js";
 
 /**
  * Menu Controller
@@ -555,7 +555,7 @@ export const disableMenuItem = async (req, res) => {
     await menuItem.save();
 
     // Log audit entry
-    await AuditLog.logFromRequest(req, {
+    safeAuditLog(req, {
       action: "UPDATE",
       entityType: "MENU_ITEM",
       entityId: menuItem._id,
@@ -594,7 +594,7 @@ export const enableMenuItem = async (req, res) => {
     await menuItem.save();
 
     // Log audit entry
-    await AuditLog.logFromRequest(req, {
+    safeAuditLog(req, {
       action: "UPDATE",
       entityType: "MENU_ITEM",
       entityId: menuItem._id,

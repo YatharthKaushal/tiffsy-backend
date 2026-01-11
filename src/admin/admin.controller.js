@@ -8,6 +8,7 @@ import Voucher from "../../schema/voucher.schema.js";
 import AuditLog from "../../schema/auditLog.schema.js";
 import SystemConfig from "../../schema/systemConfig.schema.js";
 import { sendResponse } from "../../utils/response.utils.js";
+import { safeAuditLog, safeAuditCreate } from "../../utils/audit.utils.js";
 import { normalizePhone } from "../../utils/phone.utils.js";
 import {
   getConfig,
@@ -111,7 +112,7 @@ export async function createUser(req, res) {
     await user.save();
 
     // Log audit
-    await AuditLog.create({
+    safeAuditCreate({
       action: "CREATE",
       entityType: "USER",
       entityId: user._id,
@@ -276,7 +277,7 @@ export async function updateUser(req, res) {
     await user.save();
 
     // Log audit
-    await AuditLog.create({
+    safeAuditCreate({
       action: "UPDATE",
       entityType: "USER",
       entityId: user._id,
@@ -317,7 +318,7 @@ export async function activateUser(req, res) {
     await user.save();
 
     // Log audit
-    await AuditLog.create({
+    safeAuditCreate({
       action: "ACTIVATE",
       entityType: "USER",
       entityId: user._id,
@@ -354,7 +355,7 @@ export async function deactivateUser(req, res) {
     await user.save();
 
     // Log audit
-    await AuditLog.create({
+    safeAuditCreate({
       action: "DEACTIVATE",
       entityType: "USER",
       entityId: user._id,
@@ -390,7 +391,7 @@ export async function suspendUser(req, res) {
     await user.save();
 
     // Log audit
-    await AuditLog.create({
+    safeAuditCreate({
       action: "SUSPEND",
       entityType: "USER",
       entityId: user._id,
@@ -435,7 +436,7 @@ export async function deleteUser(req, res) {
     await user.save();
 
     // Log audit
-    await AuditLog.create({
+    safeAuditCreate({
       action: "DELETE",
       entityType: "USER",
       entityId: user._id,
@@ -473,7 +474,7 @@ export async function resetUserPassword(req, res) {
     await user.save();
 
     // Log audit
-    await AuditLog.create({
+    safeAuditCreate({
       action: "RESET_PASSWORD",
       entityType: "USER",
       entityId: user._id,
@@ -518,7 +519,7 @@ export async function getAuditLogs(req, res) {
 
     const [logs, total] = await Promise.all([
       AuditLog.find(query)
-        .populate("performedBy", "name role")
+        .populate("userId", "name role")
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(parseInt(limit)),
@@ -549,7 +550,7 @@ export async function getAuditLogById(req, res) {
   try {
     const { id } = req.params;
 
-    const log = await AuditLog.findById(id).populate("performedBy", "name role phone");
+    const log = await AuditLog.findById(id).populate("userId", "name role phone");
 
     if (!log) {
       return sendResponse(res, 404, false, "Audit log not found");
@@ -643,7 +644,7 @@ export async function updateSystemConfig(req, res) {
     }
 
     // Log audit
-    await AuditLog.create({
+    safeAuditCreate({
       action: "UPDATE_CONFIG",
       entityType: "SYSTEM_CONFIG",
       entityId: "system_config",
@@ -943,7 +944,7 @@ export async function updateGuidelines(req, res) {
     if (qualityPolicy !== undefined) GUIDELINES.qualityPolicy = qualityPolicy;
 
     // Log audit
-    await AuditLog.create({
+    safeAuditCreate({
       action: "CONFIG_CHANGE",
       entityType: "SYSTEM_CONFIG",
       entityId: null,

@@ -1,8 +1,8 @@
 import SubscriptionPlan from "../../schema/subscriptionPlan.schema.js";
 import Subscription from "../../schema/subscription.schema.js";
 import Voucher from "../../schema/voucher.schema.js";
-import AuditLog from "../../schema/auditLog.schema.js";
 import { sendResponse } from "../../utils/response.utils.js";
+import { safeAuditLog } from "../../utils/audit.utils.js";
 
 /**
  * Subscription Controller
@@ -148,7 +148,7 @@ export const createPlan = async (req, res) => {
     await plan.save();
 
     // Log audit entry
-    await AuditLog.logFromRequest(req, {
+    safeAuditLog(req, {
       action: "CREATE",
       entityType: "SUBSCRIPTION_PLAN",
       entityId: plan._id,
@@ -293,7 +293,7 @@ export const updatePlan = async (req, res) => {
     await plan.save();
 
     // Log audit entry
-    await AuditLog.logFromRequest(req, {
+    safeAuditLog(req, {
       action: "UPDATE",
       entityType: "SUBSCRIPTION_PLAN",
       entityId: plan._id,
@@ -334,7 +334,7 @@ export const activatePlan = async (req, res) => {
     await plan.save();
 
     // Log audit entry
-    await AuditLog.logFromRequest(req, {
+    safeAuditLog(req, {
       action: "UPDATE",
       entityType: "SUBSCRIPTION_PLAN",
       entityId: plan._id,
@@ -369,7 +369,7 @@ export const deactivatePlan = async (req, res) => {
     await plan.save();
 
     // Log audit entry
-    await AuditLog.logFromRequest(req, {
+    safeAuditLog(req, {
       action: "UPDATE",
       entityType: "SUBSCRIPTION_PLAN",
       entityId: plan._id,
@@ -404,7 +404,7 @@ export const archivePlan = async (req, res) => {
     await plan.save();
 
     // Log audit entry
-    await AuditLog.logFromRequest(req, {
+    safeAuditLog(req, {
       action: "UPDATE",
       entityType: "SUBSCRIPTION_PLAN",
       entityId: plan._id,
@@ -885,7 +885,7 @@ export const adminCancelSubscription = async (req, res) => {
     const cancelledVouchers = await cancelUnusedVouchers(subscription._id);
 
     // Log audit entry
-    await AuditLog.logFromRequest(req, {
+    safeAuditLog(req, {
       action: "UPDATE",
       entityType: "SUBSCRIPTION",
       entityId: subscription._id,

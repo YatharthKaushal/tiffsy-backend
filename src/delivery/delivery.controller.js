@@ -3,8 +3,8 @@ import DeliveryAssignment from "../../schema/deliveryAssignment.schema.js";
 import Order from "../../schema/order.schema.js";
 import Kitchen from "../../schema/kitchen.schema.js";
 import Zone from "../../schema/zone.schema.js";
-import AuditLog from "../../schema/auditLog.schema.js";
 import { sendResponse } from "../../utils/response.utils.js";
+import { safeAuditCreate } from "../../utils/audit.utils.js";
 
 /**
  * ============================================================================
@@ -1011,7 +1011,7 @@ export async function reassignBatch(req, res) {
     );
 
     // Log audit
-    await AuditLog.create({
+    safeAuditCreate({
       action: "ASSIGN",
       entityType: "DELIVERY_BATCH",
       entityId: batch._id,
@@ -1071,7 +1071,7 @@ export async function cancelBatch(req, res) {
     await batch.save();
 
     // Log audit
-    await AuditLog.create({
+    safeAuditCreate({
       action: "CANCEL",
       entityType: "DELIVERY_BATCH",
       entityId: batch._id,
@@ -1214,7 +1214,7 @@ export async function updateBatchConfig(req, res) {
       BATCH_CONFIG.autoDispatchDelay = autoDispatchDelay;
 
     // Log audit
-    await AuditLog.create({
+    safeAuditCreate({
       action: "CONFIG_CHANGE",
       entityType: "SYSTEM_CONFIG",
       entityId: null,

@@ -3,8 +3,8 @@ import Zone from "../../schema/zone.schema.js";
 import User from "../../schema/user.schema.js";
 import Order from "../../schema/order.schema.js";
 import MenuItem from "../../schema/menuItem.schema.js";
-import AuditLog from "../../schema/auditLog.schema.js";
 import { sendResponse } from "../../utils/response.utils.js";
+import { safeAuditLog } from "../../utils/audit.utils.js";
 
 /**
  * Kitchen Controller
@@ -150,7 +150,7 @@ export const createKitchen = async (req, res) => {
     await kitchen.save();
 
     // Log audit entry
-    await AuditLog.logFromRequest(req, {
+    safeAuditLog(req, {
       action: "CREATE",
       entityType: "KITCHEN",
       entityId: kitchen._id,
@@ -323,7 +323,7 @@ export const updateKitchen = async (req, res) => {
     await kitchen.save();
 
     // Log audit entry
-    await AuditLog.logFromRequest(req, {
+    safeAuditLog(req, {
       action: "UPDATE",
       entityType: "KITCHEN",
       entityId: kitchen._id,
@@ -375,7 +375,7 @@ export const updateKitchenType = async (req, res) => {
     await kitchen.save();
 
     // Log audit entry
-    await AuditLog.logFromRequest(req, {
+    safeAuditLog(req, {
       action: "UPDATE",
       entityType: "KITCHEN",
       entityId: kitchen._id,
@@ -419,7 +419,7 @@ export const updateKitchenFlags = async (req, res) => {
     await kitchen.save();
 
     // Log audit entry
-    await AuditLog.logFromRequest(req, {
+    safeAuditLog(req, {
       action: "UPDATE",
       entityType: "KITCHEN",
       entityId: kitchen._id,
@@ -485,7 +485,7 @@ export const updateZonesServed = async (req, res) => {
     await kitchen.save();
 
     // Log audit entry
-    await AuditLog.logFromRequest(req, {
+    safeAuditLog(req, {
       action: "UPDATE",
       entityType: "KITCHEN",
       entityId: kitchen._id,
@@ -529,7 +529,7 @@ export const activateKitchen = async (req, res) => {
     await kitchen.save();
 
     // Log audit entry
-    await AuditLog.logFromRequest(req, {
+    safeAuditLog(req, {
       action: "UPDATE",
       entityType: "KITCHEN",
       entityId: kitchen._id,
@@ -573,7 +573,7 @@ export const deactivateKitchen = async (req, res) => {
     await kitchen.save();
 
     // Log audit entry
-    await AuditLog.logFromRequest(req, {
+    safeAuditLog(req, {
       action: "UPDATE",
       entityType: "KITCHEN",
       entityId: kitchen._id,
@@ -622,7 +622,7 @@ export const suspendKitchen = async (req, res) => {
     await kitchen.save();
 
     // Log audit entry with reason
-    await AuditLog.logFromRequest(req, {
+    safeAuditLog(req, {
       action: "UPDATE",
       entityType: "KITCHEN",
       entityId: kitchen._id,
@@ -691,7 +691,7 @@ export const deleteKitchen = async (req, res) => {
     );
 
     // Log audit entry
-    await AuditLog.logFromRequest(req, {
+    safeAuditLog(req, {
       action: "DELETE",
       entityType: "KITCHEN",
       entityId: kitchen._id,

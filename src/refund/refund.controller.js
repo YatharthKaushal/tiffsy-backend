@@ -1,8 +1,8 @@
 import Refund from "../../schema/refund.schema.js";
 import Order from "../../schema/order.schema.js";
 import Voucher from "../../schema/voucher.schema.js";
-import AuditLog from "../../schema/auditLog.schema.js";
 import { sendResponse } from "../../utils/response.utils.js";
+import { safeAuditCreate } from "../../utils/audit.utils.js";
 
 /**
  * ============================================================================
@@ -702,7 +702,7 @@ export async function initiateManualRefund(req, res) {
     await refund.save();
 
     // Log audit
-    await AuditLog.create({
+    safeAuditCreate({
       action: "INITIATE_REFUND",
       entityType: "REFUND",
       entityId: refund._id,
@@ -753,7 +753,7 @@ export async function approveRefund(req, res) {
     await refund.save();
 
     // Log audit
-    await AuditLog.create({
+    safeAuditCreate({
       action: "APPROVE_REFUND",
       entityType: "REFUND",
       entityId: refund._id,
@@ -819,7 +819,7 @@ export async function cancelRefund(req, res) {
     await refund.save();
 
     // Log audit
-    await AuditLog.create({
+    safeAuditCreate({
       action: "CANCEL_REFUND",
       entityType: "REFUND",
       entityId: refund._id,
@@ -881,7 +881,7 @@ export async function retryRefund(req, res) {
     await refund.save();
 
     // Log audit
-    await AuditLog.create({
+    safeAuditCreate({
       action: "RETRY_REFUND",
       entityType: "REFUND",
       entityId: refund._id,

@@ -1,7 +1,7 @@
 import Coupon from "../../schema/coupon.schema.js";
 import Order from "../../schema/order.schema.js";
-import AuditLog from "../../schema/auditLog.schema.js";
 import { sendResponse } from "../../utils/response.utils.js";
+import { safeAuditCreate } from "../../utils/audit.utils.js";
 
 /**
  * ============================================================================
@@ -213,7 +213,7 @@ export async function createCoupon(req, res) {
     await coupon.save();
 
     // Log audit
-    await AuditLog.create({
+    safeAuditCreate({
       action: "CREATE",
       entityType: "COUPON",
       entityId: coupon._id,
@@ -395,7 +395,7 @@ export async function updateCoupon(req, res) {
     await coupon.save();
 
     // Log audit
-    await AuditLog.create({
+    safeAuditCreate({
       action: "UPDATE",
       entityType: "COUPON",
       entityId: coupon._id,
@@ -447,7 +447,7 @@ export async function activateCoupon(req, res) {
     await coupon.save();
 
     // Log audit
-    await AuditLog.create({
+    safeAuditCreate({
       action: "ACTIVATE",
       entityType: "COUPON",
       entityId: coupon._id,
@@ -484,7 +484,7 @@ export async function deactivateCoupon(req, res) {
     await coupon.save();
 
     // Log audit
-    await AuditLog.create({
+    safeAuditCreate({
       action: "DEACTIVATE",
       entityType: "COUPON",
       entityId: coupon._id,
@@ -525,7 +525,7 @@ export async function deleteCoupon(req, res) {
     await coupon.deleteOne();
 
     // Log audit
-    await AuditLog.create({
+    safeAuditCreate({
       action: "DELETE",
       entityType: "COUPON",
       entityId: id,

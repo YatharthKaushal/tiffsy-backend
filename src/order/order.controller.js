@@ -7,8 +7,8 @@ import CustomerAddress from "../../schema/customerAddress.schema.js";
 import Voucher from "../../schema/voucher.schema.js";
 import Coupon from "../../schema/coupon.schema.js";
 import Refund from "../../schema/refund.schema.js";
-import AuditLog from "../../schema/auditLog.schema.js";
 import { sendResponse } from "../../utils/response.utils.js";
+import { safeAuditCreate } from "../../utils/audit.utils.js";
 import { createLogger } from "../../utils/logger.utils.js";
 import {
   checkCutoffTime,
@@ -1648,7 +1648,7 @@ export async function adminCancelOrder(req, res) {
     }
 
     // Log audit
-    await AuditLog.create({
+    safeAuditCreate({
       action: "CANCEL_ORDER",
       entityType: "ORDER",
       entityId: order._id,

@@ -2,8 +2,8 @@ import Zone from "../../schema/zone.schema.js";
 import Kitchen from "../../schema/kitchen.schema.js";
 import CustomerAddress from "../../schema/customerAddress.schema.js";
 import Order from "../../schema/order.schema.js";
-import AuditLog from "../../schema/auditLog.schema.js";
 import { sendResponse } from "../../utils/response.utils.js";
+import { safeAuditLog } from "../../utils/audit.utils.js";
 
 /**
  * Zone Controller
@@ -50,7 +50,7 @@ export const createZone = async (req, res) => {
     await zone.save();
 
     // Log audit entry
-    await AuditLog.logFromRequest(req, {
+    safeAuditLog(req, {
       action: "CREATE",
       entityType: "ZONE",
       entityId: zone._id,
@@ -188,7 +188,7 @@ export const updateZone = async (req, res) => {
     await zone.save();
 
     // Log audit entry
-    await AuditLog.logFromRequest(req, {
+    safeAuditLog(req, {
       action: "UPDATE",
       entityType: "ZONE",
       entityId: zone._id,
@@ -230,7 +230,7 @@ export const activateZone = async (req, res) => {
     await zone.save();
 
     // Log audit entry
-    await AuditLog.logFromRequest(req, {
+    safeAuditLog(req, {
       action: "ACTIVATE",
       entityType: "ZONE",
       entityId: zone._id,
@@ -274,7 +274,7 @@ export const deactivateZone = async (req, res) => {
     await zone.save();
 
     // Log audit entry
-    await AuditLog.logFromRequest(req, {
+    safeAuditLog(req, {
       action: "DEACTIVATE",
       entityType: "ZONE",
       entityId: zone._id,
@@ -313,7 +313,7 @@ export const toggleOrdering = async (req, res) => {
     await zone.save();
 
     // Log audit entry
-    await AuditLog.logFromRequest(req, {
+    safeAuditLog(req, {
       action: "UPDATE",
       entityType: "ZONE",
       entityId: zone._id,
@@ -366,7 +366,7 @@ export const deleteZone = async (req, res) => {
     await Zone.deleteOne({ _id: id });
 
     // Log audit entry
-    await AuditLog.logFromRequest(req, {
+    safeAuditLog(req, {
       action: "DELETE",
       entityType: "ZONE",
       entityId: zone._id,

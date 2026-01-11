@@ -1,8 +1,8 @@
 import Voucher from "../../schema/voucher.schema.js";
 import Subscription from "../../schema/subscription.schema.js";
 import Kitchen from "../../schema/kitchen.schema.js";
-import AuditLog from "../../schema/auditLog.schema.js";
 import { sendResponse } from "../../utils/response.utils.js";
+import { safeAuditLog } from "../../utils/audit.utils.js";
 import {
   redeemVouchersWithTransaction,
   restoreVouchersForOrder,
@@ -637,7 +637,7 @@ export const adminRestoreVouchers = async (req, res) => {
     }
 
     // Log audit entry
-    await AuditLog.logFromRequest(req, {
+    safeAuditLog(req, {
       action: "UPDATE",
       entityType: "VOUCHER",
       entityId: targetVoucherIds[0],
@@ -721,7 +721,7 @@ export const updateCutoffTimes = async (req, res) => {
     }
 
     // Log audit entry
-    await AuditLog.logFromRequest(req, {
+    safeAuditLog(req, {
       action: "UPDATE",
       entityType: "SYSTEM_CONFIG",
       entityId: null,

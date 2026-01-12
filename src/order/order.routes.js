@@ -55,7 +55,7 @@ router.get(
 router.get(
   "/kitchen",
   adminAuthMiddleware,
-  roleMiddleware("KITCHEN_STAFF"),
+  roleMiddleware(["KITCHEN_STAFF", "ADMIN"]),
   validateQuery(queryKitchenOrdersSchema),
   orderController.getKitchenOrders
 );
@@ -151,21 +151,21 @@ router.patch(
  * ORDER ACTIONS
  */
 
-// Accept order (Kitchen Staff)
+// Accept order (Kitchen Staff or Admin)
 router.patch(
   "/:id/accept",
   adminAuthMiddleware,
-  roleMiddleware("KITCHEN_STAFF"),
+  roleMiddleware(["KITCHEN_STAFF", "ADMIN"]),
   validateParams(idParamSchema),
   validateBody(acceptOrderSchema),
   orderController.acceptOrder
 );
 
-// Reject order (Kitchen Staff)
+// Reject order (Kitchen Staff or Admin)
 router.patch(
   "/:id/reject",
   adminAuthMiddleware,
-  roleMiddleware("KITCHEN_STAFF"),
+  roleMiddleware(["KITCHEN_STAFF", "ADMIN"]),
   validateParams(idParamSchema),
   validateBody(rejectOrderSchema),
   orderController.rejectOrder
@@ -181,11 +181,11 @@ router.patch(
   orderController.cancelOrder
 );
 
-// Update order status (Kitchen Staff)
+// Update order status (Kitchen Staff or Admin)
 router.patch(
   "/:id/status",
   adminAuthMiddleware,
-  roleMiddleware("KITCHEN_STAFF"),
+  roleMiddleware(["KITCHEN_STAFF", "ADMIN"]),
   validateParams(idParamSchema),
   validateBody(updateOrderStatusSchema),
   orderController.updateOrderStatus

@@ -56,7 +56,7 @@ router.post(
 router.get(
   "/available-batches",
   adminAuthMiddleware,
-  roleMiddleware("DRIVER"),
+  roleMiddleware(["DRIVER", "ADMIN"]),
   deliveryController.getAvailableBatches
 );
 
@@ -64,7 +64,7 @@ router.get(
 router.get(
   "/my-batch",
   adminAuthMiddleware,
-  roleMiddleware("DRIVER"),
+  roleMiddleware(["DRIVER", "ADMIN"]),
   deliveryController.getMyBatch
 );
 
@@ -76,7 +76,7 @@ router.get(
 router.get(
   "/kitchen-batches",
   adminAuthMiddleware,
-  roleMiddleware("KITCHEN_STAFF"),
+  roleMiddleware(["KITCHEN_STAFF", "ADMIN"]),
   validateQuery(queryKitchenBatchesSchema),
   deliveryController.getKitchenBatches
 );
@@ -131,38 +131,38 @@ router.get(
   deliveryController.getBatchById
 );
 
-// Accept batch (Driver)
+// Accept batch (Driver or Admin)
 router.post(
   "/batches/:batchId/accept",
   adminAuthMiddleware,
-  roleMiddleware("DRIVER"),
+  roleMiddleware(["DRIVER", "ADMIN"]),
   validateParams(batchIdParamSchema),
   deliveryController.acceptBatch
 );
 
-// Mark batch as picked up (Driver)
+// Mark batch as picked up (Driver or Admin)
 router.patch(
   "/batches/:batchId/pickup",
   adminAuthMiddleware,
-  roleMiddleware("DRIVER"),
+  roleMiddleware(["DRIVER", "ADMIN"]),
   validateParams(batchIdParamSchema),
   deliveryController.updateBatchPickup
 );
 
-// Complete batch (Driver)
+// Complete batch (Driver or Admin)
 router.patch(
   "/batches/:batchId/complete",
   adminAuthMiddleware,
-  roleMiddleware("DRIVER"),
+  roleMiddleware(["DRIVER", "ADMIN"]),
   validateParams(batchIdParamSchema),
   deliveryController.completeBatch
 );
 
-// Update delivery sequence (Driver)
+// Update delivery sequence (Driver or Admin)
 router.patch(
   "/batches/:batchId/sequence",
   adminAuthMiddleware,
-  roleMiddleware("DRIVER"),
+  roleMiddleware(["DRIVER", "ADMIN"]),
   validateParams(batchIdParamSchema),
   validateBody(updateDeliverySequenceSchema),
   deliveryController.updateDeliverySequence
@@ -192,11 +192,11 @@ router.patch(
  * ORDER DELIVERY STATUS
  */
 
-// Update delivery status (Driver)
+// Update delivery status (Driver or Admin)
 router.patch(
   "/orders/:orderId/status",
   adminAuthMiddleware,
-  roleMiddleware("DRIVER"),
+  roleMiddleware(["DRIVER", "ADMIN"]),
   validateParams(orderIdParamSchema),
   validateBody(updateDeliveryStatusSchema),
   deliveryController.updateDeliveryStatus

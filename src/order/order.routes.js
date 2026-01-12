@@ -68,7 +68,7 @@ router.get(
 router.get(
   "/driver",
   adminAuthMiddleware,
-  roleMiddleware("DRIVER"),
+  roleMiddleware(["DRIVER", "ADMIN"]),
   orderController.getDriverOrders
 );
 
@@ -191,11 +191,11 @@ router.patch(
   orderController.updateOrderStatus
 );
 
-// Update delivery status (Driver)
+// Update delivery status (Driver or Admin)
 router.patch(
   "/:id/delivery-status",
   adminAuthMiddleware,
-  roleMiddleware("DRIVER"),
+  roleMiddleware(["DRIVER", "ADMIN"]),
   validateParams(idParamSchema),
   validateBody(updateDeliveryStatusSchema),
   orderController.updateDeliveryStatus

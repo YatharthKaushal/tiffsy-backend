@@ -64,7 +64,7 @@ router.get(
 router.get(
   "/my-kitchen",
   adminAuthMiddleware,
-  roleMiddleware("KITCHEN_STAFF"),
+  roleMiddleware(["KITCHEN_STAFF", "ADMIN"]),
   kitchenController.getMyKitchen
 );
 
@@ -72,7 +72,7 @@ router.get(
 router.patch(
   "/my-kitchen/images",
   adminAuthMiddleware,
-  roleMiddleware("KITCHEN_STAFF"),
+  roleMiddleware(["KITCHEN_STAFF", "ADMIN"]),
   kitchenController.updateMyKitchenImages
 );
 
@@ -80,7 +80,7 @@ router.patch(
 router.patch(
   "/my-kitchen/accepting-orders",
   adminAuthMiddleware,
-  roleMiddleware("KITCHEN_STAFF"),
+  roleMiddleware(["KITCHEN_STAFF", "ADMIN"]),
   validateBody(toggleOrderingSchema),
   kitchenController.toggleOrderAcceptance
 );

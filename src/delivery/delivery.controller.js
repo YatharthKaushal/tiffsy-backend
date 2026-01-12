@@ -534,13 +534,15 @@ export async function updateBatchPickup(req, res) {
   try {
     const { batchId } = req.params;
     const driverId = req.user._id;
+    const isAdmin = req.user.role === "ADMIN";
 
     const batch = await DeliveryBatch.findById(batchId);
     if (!batch) {
       return sendResponse(res, 404, false, "Batch not found");
     }
 
-    if (batch.driverId?.toString() !== driverId.toString()) {
+    // Admin can update any batch, driver can only update their assigned batches
+    if (!isAdmin && batch.driverId?.toString() !== driverId.toString()) {
       return sendResponse(res, 403, false, "Not assigned to this batch");
     }
 
@@ -597,12 +599,11 @@ export async function updateDeliveryStatus(req, res) {
     const { orderId } = req.params;
     const { status, notes, failureReason, proofOfDelivery } = req.body;
     const driverId = req.user._id;
+    const isAdmin = req.user.role === "ADMIN";
 
-    // Find assignment
-    const assignment = await DeliveryAssignment.findOne({
-      orderId,
-      driverId,
-    });
+    // Find assignment - admin can update any order, driver can only update their assigned orders
+    const assignmentQuery = isAdmin ? { orderId } : { orderId, driverId };
+    const assignment = await DeliveryAssignment.findOne(assignmentQuery);
 
     if (!assignment) {
       return sendResponse(res, 403, false, "Not assigned to this order");
@@ -685,13 +686,15 @@ export async function completeBatch(req, res) {
   try {
     const { batchId } = req.params;
     const driverId = req.user._id;
+    const isAdmin = req.user.role === "ADMIN";
 
     const batch = await DeliveryBatch.findById(batchId);
     if (!batch) {
       return sendResponse(res, 404, false, "Batch not found");
     }
 
-    if (batch.driverId?.toString() !== driverId.toString()) {
+    // Admin can complete any batch, driver can only complete their assigned batches
+    if (!isAdmin && batch.driverId?.toString() !== driverId.toString()) {
       return sendResponse(res, 403, false, "Not assigned to this batch");
     }
 
@@ -733,13 +736,15 @@ export async function updateDeliverySequence(req, res) {
     const { batchId } = req.params;
     const { sequence } = req.body;
     const driverId = req.user._id;
+    const isAdmin = req.user.role === "ADMIN";
 
     const batch = await DeliveryBatch.findById(batchId);
     if (!batch) {
       return sendResponse(res, 404, false, "Batch not found");
     }
 
-    if (batch.driverId?.toString() !== driverId.toString()) {
+    // Admin can update any batch, driver can only update their assigned batches
+    if (!isAdmin && batch.driverId?.toString() !== driverId.toString()) {
       return sendResponse(res, 403, false, "Not assigned to this batch");
     }
 

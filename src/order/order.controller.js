@@ -1164,6 +1164,7 @@ export async function acceptOrder(req, res) {
     const { estimatedPrepTime } = req.body;
     const kitchenId = req.user.kitchenId;
     const staffId = req.user._id;
+    const isAdmin = req.user.role === "ADMIN";
 
     log.request(req, "acceptOrder");
 
@@ -1173,8 +1174,9 @@ export async function acceptOrder(req, res) {
       return sendResponse(res, 404, false, "Order not found");
     }
 
-    if (order.kitchenId.toString() !== kitchenId.toString()) {
-      log.warn("acceptOrder", "Kitchen mismatch", { orderId: id, orderKitchen: order.kitchenId.toString(), staffKitchen: kitchenId.toString() });
+    // Admin can accept any order, kitchen staff can only accept their kitchen's orders
+    if (!isAdmin && order.kitchenId.toString() !== kitchenId?.toString()) {
+      log.warn("acceptOrder", "Kitchen mismatch", { orderId: id, orderKitchen: order.kitchenId.toString(), staffKitchen: kitchenId?.toString() });
       return sendResponse(
         res,
         403,
@@ -1230,6 +1232,7 @@ export async function rejectOrder(req, res) {
     const { reason } = req.body;
     const kitchenId = req.user.kitchenId;
     const staffId = req.user._id;
+    const isAdmin = req.user.role === "ADMIN";
 
     log.request(req, "rejectOrder");
 
@@ -1239,7 +1242,8 @@ export async function rejectOrder(req, res) {
       return sendResponse(res, 404, false, "Order not found");
     }
 
-    if (order.kitchenId.toString() !== kitchenId.toString()) {
+    // Admin can reject any order, kitchen staff can only reject their kitchen's orders
+    if (!isAdmin && order.kitchenId.toString() !== kitchenId?.toString()) {
       log.warn("rejectOrder", "Kitchen mismatch", { orderId: id });
       return sendResponse(
         res,
@@ -1316,6 +1320,7 @@ export async function cancelOrder(req, res) {
     const { reason } = req.body;
     const kitchenId = req.user.kitchenId;
     const staffId = req.user._id;
+    const isAdmin = req.user.role === "ADMIN";
 
     log.request(req, "cancelOrder");
 
@@ -1325,7 +1330,8 @@ export async function cancelOrder(req, res) {
       return sendResponse(res, 404, false, "Order not found");
     }
 
-    if (order.kitchenId.toString() !== kitchenId.toString()) {
+    // Admin can cancel any order, kitchen staff can only cancel their kitchen's orders
+    if (!isAdmin && order.kitchenId.toString() !== kitchenId?.toString()) {
       log.warn("cancelOrder", "Kitchen mismatch", { orderId: id });
       return sendResponse(
         res,
@@ -1403,13 +1409,15 @@ export async function updateOrderStatus(req, res) {
     const { status, notes } = req.body;
     const kitchenId = req.user.kitchenId;
     const staffId = req.user._id;
+    const isAdmin = req.user.role === "ADMIN";
 
     const order = await Order.findById(id);
     if (!order) {
       return sendResponse(res, 404, false, "Order not found");
     }
 
-    if (order.kitchenId.toString() !== kitchenId.toString()) {
+    // Admin can update any order, kitchen staff can only update their kitchen's orders
+    if (!isAdmin && order.kitchenId.toString() !== kitchenId?.toString()) {
       return sendResponse(
         res,
         403,
@@ -1478,6 +1486,7 @@ export async function updateDeliveryStatus(req, res) {
     const { id } = req.params;
     const { status, notes, proofOfDelivery } = req.body;
     const driverId = req.user._id;
+    const isAdmin = req.user.role === "ADMIN";
 
     log.request(req, "updateDeliveryStatus");
 
@@ -1487,7 +1496,8 @@ export async function updateDeliveryStatus(req, res) {
       return sendResponse(res, 404, false, "Order not found");
     }
 
-    if (order.driverId?.toString() !== driverId.toString()) {
+    // Admin can update any order, driver can only update their assigned orders
+    if (!isAdmin && order.driverId?.toString() !== driverId.toString()) {
       log.warn("updateDeliveryStatus", "Driver not assigned", { orderId: id, driverId: driverId.toString() });
       return sendResponse(res, 403, false, "Not assigned to this order");
     }

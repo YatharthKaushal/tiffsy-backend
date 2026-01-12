@@ -191,4 +191,34 @@ router.post(
   adminController.resetUserPassword
 );
 
+/**
+ * DRIVER APPROVAL MANAGEMENT
+ */
+
+// Get pending driver registrations
+router.get(
+  "/drivers/pending",
+  adminAuthMiddleware,
+  adminMiddleware,
+  adminController.getPendingDrivers
+);
+
+// Approve driver registration
+router.patch(
+  "/drivers/:id/approve",
+  adminAuthMiddleware,
+  adminMiddleware,
+  validateParams(idParamSchema),
+  adminController.approveDriver
+);
+
+// Reject driver registration
+router.patch(
+  "/drivers/:id/reject",
+  adminAuthMiddleware,
+  adminMiddleware,
+  validateParams(idParamSchema),
+  adminController.rejectDriver
+);
+
 export default router;

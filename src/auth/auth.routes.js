@@ -5,6 +5,7 @@ import { validateBody } from "../../middlewares/validate.middleware.js";
 import {
   syncUserSchema,
   registerUserSchema,
+  registerDriverSchema,
   completeProfileSchema,
   adminLoginSchema,
   changePasswordSchema,
@@ -44,6 +45,18 @@ router.post(
   firebaseAuthMiddleware,
   validateBody(registerUserSchema),
   authController.registerUser
+);
+
+/**
+ * POST /api/auth/register-driver
+ * Register new driver after Firebase OTP authentication
+ * Creates new driver account with vehicle details - requires admin approval
+ */
+router.post(
+  "/register-driver",
+  firebaseAuthMiddleware,
+  validateBody(registerDriverSchema),
+  authController.registerDriver
 );
 
 /**

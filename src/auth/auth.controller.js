@@ -90,6 +90,29 @@ export const syncUser = async (req, res) => {
       });
     }
 
+    // Check if driver is pending approval
+    if (user.role === "DRIVER" && user.approvalStatus === "PENDING") {
+      return sendResponse(res, 200, "Driver pending approval", {
+        user: user.toJSON(),
+        isNewUser: false,
+        isProfileComplete: Boolean(user.name),
+        approvalStatus: "PENDING",
+        message: "Your driver registration is pending admin approval.",
+      });
+    }
+
+    // Check if driver was rejected
+    if (user.role === "DRIVER" && user.approvalStatus === "REJECTED") {
+      return sendResponse(res, 200, "Driver rejected", {
+        user: user.toJSON(),
+        isNewUser: false,
+        isProfileComplete: Boolean(user.name),
+        approvalStatus: "REJECTED",
+        rejectionReason: user.approvalDetails?.rejectionReason,
+        message: "Your driver registration was rejected.",
+      });
+    }
+
     // Existing user - update Firebase UID if not set
     if (!user.firebaseUid && firebaseUid) {
       user.firebaseUid = firebaseUid;
@@ -103,6 +126,7 @@ export const syncUser = async (req, res) => {
       user: user.toJSON(),
       isNewUser: false,
       isProfileComplete,
+      approvalStatus: user.role === "DRIVER" ? user.approvalStatus : undefined,
     });
   } catch (error) {
     console.log("> Auth sync error:", error);
@@ -181,6 +205,119 @@ export const registerUser = async (req, res) => {
     console.error("> Auth register error:", error.message);
     console.error("> Auth register stack:", error.stack);
     return sendResponse(res, 500, "Server error");
+  }
+};
+
+/**
+ * Register new driver after Firebase OTP authentication
+ * Creates new DRIVER account with vehicle details - requires admin approval
+ *
+ * POST /api/auth/register-driver
+ */
+export const registerDriver = async (req, res) => {
+  try {
+    const {
+      name,
+      email,
+      profileImage,
+      licenseNumber,
+      licenseImageUrl,
+      licenseExpiryDate,
+      vehicleName,
+      vehicleNumber,
+      vehicleType,
+      vehicleDocuments,
+    } = req.body;
+    const phone = req.phone;
+    const firebaseUid = req.firebaseUid;
+
+    console.log(`> Driver register attempt - phone: ${phone}, name: ${name}`);
+
+    // Validate phone is present
+    if (!phone) {
+      console.log("> Driver register error: Phone not found in request");
+      return sendResponse(res, 400, false, "Phone number not found");
+    }
+
+    // Check if user already exists
+    const existingUser = await User.findOne({ phone });
+    if (existingUser) {
+      // If user was deleted, allow re-registration
+      if (existingUser.status === "DELETED") {
+        existingUser.status = "ACTIVE";
+        existingUser.role = "DRIVER";
+        existingUser.name = name.trim();
+        existingUser.email = email?.trim() || existingUser.email;
+        existingUser.profileImage = profileImage || existingUser.profileImage;
+        existingUser.firebaseUid = firebaseUid;
+        existingUser.approvalStatus = "PENDING";
+        existingUser.driverDetails = {
+          licenseNumber: licenseNumber.trim(),
+          licenseImageUrl,
+          licenseExpiryDate: licenseExpiryDate ? new Date(licenseExpiryDate) : undefined,
+          vehicleName: vehicleName.trim(),
+          vehicleNumber: vehicleNumber.trim().toUpperCase(),
+          vehicleType,
+          vehicleDocuments,
+        };
+        existingUser.approvalDetails = {};
+        existingUser.lastLoginAt = new Date();
+        await existingUser.save();
+
+        console.log(`> Reactivated deleted user as driver: ${phone}`);
+
+        return sendResponse(res, 201, true, "Driver registration submitted for approval", {
+          user: existingUser.toJSON(),
+          approvalStatus: "PENDING",
+          message: "Your registration is pending admin approval. You will be notified once approved.",
+        });
+      }
+
+      // User exists and is not deleted
+      if (existingUser.role === "DRIVER") {
+        return sendResponse(res, 409, false, "Driver account already exists", {
+          approvalStatus: existingUser.approvalStatus,
+        });
+      }
+
+      return sendResponse(res, 409, false, "Phone number already registered with a different role");
+    }
+
+    // Create new DRIVER user with PENDING approval
+    const newDriver = new User({
+      phone,
+      role: "DRIVER",
+      name: name.trim(),
+      email: email?.trim() || undefined,
+      profileImage,
+      firebaseUid,
+      status: "ACTIVE",
+      approvalStatus: "PENDING",
+      driverDetails: {
+        licenseNumber: licenseNumber.trim(),
+        licenseImageUrl,
+        licenseExpiryDate: licenseExpiryDate ? new Date(licenseExpiryDate) : undefined,
+        vehicleName: vehicleName.trim(),
+        vehicleNumber: vehicleNumber.trim().toUpperCase(),
+        vehicleType,
+        vehicleDocuments,
+      },
+      lastLoginAt: new Date(),
+    });
+
+    await newDriver.save();
+
+    console.log(`> New driver registered (pending approval): ${phone}`);
+
+    return sendResponse(res, 201, true, "Driver registration submitted for approval", {
+      user: newDriver.toJSON(),
+      approvalStatus: "PENDING",
+      message: "Your registration is pending admin approval. You will be notified once approved.",
+    });
+  } catch (error) {
+    console.error("> Driver register error:", error.message);
+    console.error("> Driver register stack:", error.stack);
+    return sendResponse(res, 500, false, "Failed to register driver");
   }
 };
 
@@ -469,6 +606,7 @@ export const adminRefreshToken = async (req, res) => {
 export default {
   syncUser,
   registerUser,
+  registerDriver,
   completeProfile,
   getCurrentUser,
   updateFcmToken,

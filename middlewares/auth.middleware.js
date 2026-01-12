@@ -77,6 +77,30 @@ export const authMiddleware = async (req, res, next) => {
       );
     }
 
+    // Check if driver is pending approval
+    if (user.role === "DRIVER" && user.approvalStatus === "PENDING") {
+      console.log(`> Auth error: Driver pending approval: ${user._id}`);
+      return sendResponse(
+        res,
+        403,
+        "Pending approval",
+        null,
+        "Your driver registration is pending admin approval"
+      );
+    }
+
+    // Check if driver was rejected
+    if (user.role === "DRIVER" && user.approvalStatus === "REJECTED") {
+      console.log(`> Auth error: Driver rejected: ${user._id}`);
+      return sendResponse(
+        res,
+        403,
+        "Registration rejected",
+        null,
+        "Your driver registration was rejected"
+      );
+    }
+
     // Attach user to request
     req.user = user;
     req.firebaseUid = uid;
@@ -454,6 +478,18 @@ export const adminAuthMiddleware = async (req, res, next) => {
     if (user.status === "INACTIVE") {
       console.log(`> Admin auth error: User inactive: ${user._id}`);
       return sendResponse(res, 403, "Account inactive", null, "Your account is inactive");
+    }
+
+    // Check if driver is pending approval
+    if (user.role === "DRIVER" && user.approvalStatus === "PENDING") {
+      console.log(`> Admin auth error: Driver pending approval: ${user._id}`);
+      return sendResponse(res, 403, "Pending approval", null, "Your driver registration is pending admin approval");
+    }
+
+    // Check if driver was rejected
+    if (user.role === "DRIVER" && user.approvalStatus === "REJECTED") {
+      console.log(`> Admin auth error: Driver rejected: ${user._id}`);
+      return sendResponse(res, 403, "Registration rejected", null, "Your driver registration was rejected");
     }
 
     req.user = user;

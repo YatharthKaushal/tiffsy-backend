@@ -218,6 +218,7 @@ const orderSchema = new mongoose.Schema(
 
     // Preparation
     estimatedPrepTime: Number,
+    preparingAt: Date,
     preparedAt: Date,
 
     // Delivery
@@ -233,6 +234,7 @@ const orderSchema = new mongoose.Schema(
 
     estimatedDeliveryTime: Date,
     pickedUpAt: Date,
+    outForDeliveryAt: Date,
     deliveredAt: Date,
     deliveryNotes: String,
 
@@ -326,6 +328,9 @@ orderSchema.methods.updateStatus = async function (newStatus, userId, notes) {
     case "ACCEPTED":
       this.acceptedAt = new Date();
       break;
+    case "PREPARING":
+      this.preparingAt = new Date();
+      break;
     case "REJECTED":
       this.rejectedAt = new Date();
       break;
@@ -337,6 +342,9 @@ orderSchema.methods.updateStatus = async function (newStatus, userId, notes) {
       break;
     case "PICKED_UP":
       this.pickedUpAt = new Date();
+      break;
+    case "OUT_FOR_DELIVERY":
+      this.outForDeliveryAt = new Date();
       break;
     case "DELIVERED":
       this.deliveredAt = new Date();

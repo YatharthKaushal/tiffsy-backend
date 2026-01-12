@@ -560,17 +560,29 @@ export async function updateBatchPickup(req, res) {
     batch.pickedUpAt = new Date();
     await batch.save();
 
-    // Update all orders to PICKED_UP
+    const now = new Date();
+
+    // Update all orders: PICKED_UP then automatically OUT_FOR_DELIVERY
     await Order.updateMany(
       { _id: { $in: batch.orderIds } },
       {
-        $set: { status: "PICKED_UP", pickedUpAt: new Date() },
+        $set: { status: "OUT_FOR_DELIVERY", pickedUpAt: now },
         $push: {
           statusTimeline: {
-            status: "PICKED_UP",
-            timestamp: new Date(),
-            updatedBy: driverId,
-            notes: "Picked up by driver",
+            $each: [
+              {
+                status: "PICKED_UP",
+                timestamp: now,
+                updatedBy: driverId,
+                notes: "Picked up by driver",
+              },
+              {
+                status: "OUT_FOR_DELIVERY",
+                timestamp: new Date(now.getTime() + 1), // 1ms later for ordering
+                updatedBy: driverId,
+                notes: "Driver left for delivery",
+              },
+            ],
           },
         },
       }
@@ -579,10 +591,10 @@ export async function updateBatchPickup(req, res) {
     // Update assignments
     await DeliveryAssignment.updateMany(
       { batchId },
-      { $set: { status: "PICKED_UP", pickedUpAt: new Date() } }
+      { $set: { status: "OUT_FOR_DELIVERY", pickedUpAt: now } }
     );
 
-    return sendResponse(res, 200, true, "Batch picked up", { batch });
+    return sendResponse(res, 200, true, "Batch picked up, driver out for delivery", { batch });
   } catch (error) {
     console.log("Update batch pickup error:", error);
     return sendResponse(res, 500, false, "Failed to update batch pickup");
@@ -651,8 +663,14 @@ export async function updateDeliveryStatus(req, res) {
       await assignment.save();
     }
 
-    // Update order status
-    await order.updateStatus(status, driverId, notes);
+    // Update order status - auto-transition PICKED_UP to OUT_FOR_DELIVERY
+    if (status === "PICKED_UP") {
+      await order.updateStatus("PICKED_UP", driverId, notes || "Picked up by driver");
+      await order.updateStatus("OUT_FOR_DELIVERY", driverId, "Driver left for delivery");
+      await assignment.updateStatus("OUT_FOR_DELIVERY");
+    } else {
+      await order.updateStatus(status, driverId, notes);
+    }
 
     // Update batch counters
     const batchProgress = await updateBatchCounters(assignment.batchId);

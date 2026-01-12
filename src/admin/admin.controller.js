@@ -451,6 +451,157 @@ export async function deleteUser(req, res) {
 }
 
 /**
+ * Get pending driver registrations
+ * @route GET /api/admin/drivers/pending
+ * @access Admin
+ */
+export async function getPendingDrivers(req, res) {
+  try {
+    const { page = 1, limit = 20 } = req.query;
+    const skip = (page - 1) * limit;
+
+    const query = {
+      role: "DRIVER",
+      approvalStatus: "PENDING",
+      status: { $ne: "DELETED" },
+    };
+
+    const [drivers, total] = await Promise.all([
+      User.find(query)
+        .select("-passwordHash")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(parseInt(limit)),
+      User.countDocuments(query),
+    ]);
+
+    return sendResponse(res, 200, true, "Pending drivers retrieved", {
+      drivers,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        pages: Math.ceil(total / limit),
+      },
+    });
+  } catch (error) {
+    console.log("Get pending drivers error:", error);
+    return sendResponse(res, 500, false, "Failed to retrieve pending drivers");
+  }
+}
+
+/**
+ * Approve a driver registration
+ * @route PATCH /api/admin/drivers/:id/approve
+ * @access Admin
+ */
+export async function approveDriver(req, res) {
+  try {
+    const { id } = req.params;
+    const adminId = req.user._id;
+
+    const user = await User.findById(id);
+    if (!user) {
+      return sendResponse(res, 404, false, "User not found");
+    }
+
+    if (user.role !== "DRIVER") {
+      return sendResponse(res, 400, false, "User is not a driver");
+    }
+
+    if (user.approvalStatus === "APPROVED") {
+      return sendResponse(res, 400, false, "Driver is already approved");
+    }
+
+    // Update approval status
+    user.approvalStatus = "APPROVED";
+    user.approvalDetails = {
+      approvedBy: adminId,
+      approvedAt: new Date(),
+    };
+    await user.save();
+
+    // Log audit
+    safeAuditCreate({
+      action: "APPROVE_DRIVER",
+      entityType: "USER",
+      entityId: user._id,
+      performedBy: adminId,
+      details: { driverName: user.name, phone: user.phone },
+    });
+
+    const userResponse = user.toObject();
+    delete userResponse.passwordHash;
+
+    return sendResponse(res, 200, true, "Driver approved successfully", {
+      user: userResponse,
+    });
+  } catch (error) {
+    console.log("Approve driver error:", error);
+    return sendResponse(res, 500, false, "Failed to approve driver");
+  }
+}
+
+/**
+ * Reject a driver registration
+ * @route PATCH /api/admin/drivers/:id/reject
+ * @access Admin
+ */
+export async function rejectDriver(req, res) {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+    const adminId = req.user._id;
+
+    if (!reason) {
+      return sendResponse(res, 400, false, "Rejection reason is required");
+    }
+
+    const user = await User.findById(id);
+    if (!user) {
+      return sendResponse(res, 404, false, "User not found");
+    }
+
+    if (user.role !== "DRIVER") {
+      return sendResponse(res, 400, false, "User is not a driver");
+    }
+
+    if (user.approvalStatus === "REJECTED") {
+      return sendResponse(res, 400, false, "Driver is already rejected");
+    }
+
+    // Update approval status
+    user.approvalStatus = "REJECTED";
+    user.approvalDetails = {
+      ...user.approvalDetails,
+      rejectedBy: adminId,
+      rejectedAt: new Date(),
+      rejectionReason: reason,
+    };
+    await user.save();
+
+    // Log audit
+    safeAuditCreate({
+      action: "REJECT_DRIVER",
+      entityType: "USER",
+      entityId: user._id,
+      performedBy: adminId,
+      details: { driverName: user.name, phone: user.phone, reason },
+    });
+
+    const userResponse = user.toObject();
+    delete userResponse.passwordHash;
+
+    return sendResponse(res, 200, true, "Driver rejected", {
+      user: userResponse,
+    });
+  } catch (error) {
+    console.log("Reject driver error:", error);
+    return sendResponse(res, 500, false, "Failed to reject driver");
+  }
+}
+
+/**
  * Reset admin user password
  * @route POST /api/admin/users/:id/reset-password
  * @access Admin

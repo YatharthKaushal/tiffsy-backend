@@ -1006,56 +1006,71 @@ export async function customerCancelOrder(req, res) {
     const { id } = req.params;
     const userId = req.user._id;
     const { reason } = req.body;
+    const isAdmin = req.user.role === "ADMIN";
 
-    const order = await Order.findOne({ _id: id, userId });
+    // Admin can cancel any order, customers can only cancel their own
+    const query = isAdmin ? { _id: id } : { _id: id, userId };
+    const order = await Order.findOne(query);
     if (!order) {
       return sendResponse(res, 404, false, "Order not found");
     }
 
-    // Use config service to check cancellation eligibility
-    const eligibility = checkCancellationEligibility(order);
+    // Use config service to check cancellation eligibility (admin can bypass)
+    if (!isAdmin) {
+      const eligibility = checkCancellationEligibility(order);
 
-    if (!eligibility.canCancel) {
-      return sendResponse(res, 400, false, eligibility.reason, {
-        orderAgeMinutes: eligibility.orderAgeMinutes,
-        windowMinutes: eligibility.windowMinutes,
-      });
+      if (!eligibility.canCancel) {
+        return sendResponse(res, 400, false, eligibility.reason, {
+          orderAgeMinutes: eligibility.orderAgeMinutes,
+          windowMinutes: eligibility.windowMinutes,
+        });
+      }
     }
 
+    // Determine who cancelled
+    const cancelledBy = isAdmin ? "ADMIN" : "CUSTOMER";
+    const cancelledByLabel = isAdmin ? "admin" : "customer";
+
     // Update order status
-    order.cancellationReason = reason || "Cancelled by customer";
-    order.cancelledBy = "CUSTOMER";
+    order.cancellationReason = reason || `Cancelled by ${cancelledByLabel}`;
+    order.cancelledBy = cancelledBy;
     await order.updateStatus(
       "CANCELLED",
       userId,
-      reason || "Cancelled by customer"
+      reason || `Cancelled by ${cancelledByLabel}`
     );
 
     // Restore vouchers only if eligibility says so
     // (voucher orders: only before meal window cutoff; non-voucher: no vouchers to restore)
+    // Admin can always restore vouchers
     let vouchersRestored = 0;
     let voucherWarning = null;
 
     if (order.voucherUsage?.voucherIds?.length > 0) {
-      if (eligibility.shouldRestoreVouchers) {
-        // Before cutoff - restore vouchers
+      // Admin always restores vouchers, customer only if before cutoff
+      const eligibility = isAdmin ? null : checkCancellationEligibility(order);
+      const shouldRestore = isAdmin || eligibility?.shouldRestoreVouchers;
+
+      if (shouldRestore) {
+        // Restore vouchers
         const restoreResult = await restoreVouchersForOrder(
           order.voucherUsage.voucherIds,
-          "Order cancelled by customer"
+          `Order cancelled by ${cancelledByLabel}`
         );
         vouchersRestored = restoreResult.count;
       } else {
         // After cutoff - vouchers NOT restored
         voucherWarning =
-          eligibility.warning ||
+          eligibility?.warning ||
           "Vouchers used for this order will not be restored as the meal window has closed.";
       }
     }
 
     // Process refund if payment was made (for non-voucher portion)
     let refundInitiated = false;
+    const refundReason = isAdmin ? "ORDER_CANCELLED_BY_ADMIN" : "ORDER_CANCELLED_BY_CUSTOMER";
     if (order.amountPaid > 0 && order.paymentStatus === "PAID") {
-      await processRefund(order, "ORDER_CANCELLED_BY_CUSTOMER", "CUSTOMER");
+      await processRefund(order, refundReason, cancelledBy);
       refundInitiated = true;
     }
 
@@ -1195,7 +1210,11 @@ export async function acceptOrder(req, res) {
       );
     }
 
+    // Set ACCEPTED status first
     await order.updateStatus("ACCEPTED", staffId, "Order accepted by kitchen");
+
+    // Automatically transition to PREPARING (kitchen starts prep on acceptance)
+    await order.updateStatus("PREPARING", staffId, "Preparation started automatically");
 
     if (estimatedPrepTime) {
       order.estimatedPrepTime = estimatedPrepTime;
@@ -1203,7 +1222,7 @@ export async function acceptOrder(req, res) {
     }
 
     const duration = Date.now() - startTime;
-    log.event("ORDER_ACCEPTED", "Order accepted by kitchen", {
+    log.event("ORDER_ACCEPTED", "Order accepted and preparation started", {
       orderId: id,
       orderNumber: order.orderNumber,
       kitchenId: kitchenId.toString(),
@@ -1263,16 +1282,18 @@ export async function rejectOrder(req, res) {
       );
     }
 
-    // Update order status
+    // Update order status - determine who is rejecting
+    const rejectedBy = isAdmin ? "ADMIN" : "KITCHEN";
+    const rejectedByLabel = isAdmin ? "admin" : "kitchen";
     order.rejectionReason = reason;
     await order.updateStatus("REJECTED", staffId, reason);
 
-    // Restore vouchers if used (kitchen rejection always restores vouchers)
+    // Restore vouchers if used (kitchen/admin rejection always restores vouchers)
     let vouchersRestored = 0;
     if (order.voucherUsage?.voucherIds?.length > 0) {
       const restoreResult = await restoreVouchersForOrder(
         order.voucherUsage.voucherIds,
-        "Order rejected by kitchen"
+        `Order rejected by ${rejectedByLabel}`
       );
       vouchersRestored = restoreResult.count;
       log.info("rejectOrder", "Vouchers restored", { orderId: id, count: vouchersRestored });
@@ -1281,13 +1302,13 @@ export async function rejectOrder(req, res) {
     // Process refund if payment was made
     let refundInitiated = false;
     if (order.amountPaid > 0 && order.paymentStatus === "PAID") {
-      await processRefund(order, "Order rejected by kitchen", "KITCHEN");
+      await processRefund(order, `Order rejected by ${rejectedByLabel}`, rejectedBy);
       refundInitiated = true;
       log.info("rejectOrder", "Refund initiated", { orderId: id, amount: order.amountPaid });
     }
 
     const duration = Date.now() - startTime;
-    log.event("ORDER_REJECTED", "Order rejected by kitchen", {
+    log.event("ORDER_REJECTED", `Order rejected by ${rejectedByLabel}`, {
       orderId: id,
       orderNumber: order.orderNumber,
       reason,
@@ -1351,17 +1372,19 @@ export async function cancelOrder(req, res) {
       );
     }
 
-    // Update order status
+    // Update order status - determine who is cancelling
+    const cancelledBy = isAdmin ? "ADMIN" : "KITCHEN";
+    const cancelledByLabel = isAdmin ? "admin" : "kitchen";
     order.cancellationReason = reason;
-    order.cancelledBy = "KITCHEN";
+    order.cancelledBy = cancelledBy;
     await order.updateStatus("CANCELLED", staffId, reason);
 
-    // Restore vouchers if used (kitchen cancellation always restores vouchers)
+    // Restore vouchers if used (kitchen/admin cancellation always restores vouchers)
     let vouchersRestored = 0;
     if (order.voucherUsage?.voucherIds?.length > 0) {
       const restoreResult = await restoreVouchersForOrder(
         order.voucherUsage.voucherIds,
-        "Order cancelled by kitchen"
+        `Order cancelled by ${cancelledByLabel}`
       );
       vouchersRestored = restoreResult.count;
       log.info("cancelOrder", "Vouchers restored", { orderId: id, count: vouchersRestored });
@@ -1370,13 +1393,13 @@ export async function cancelOrder(req, res) {
     // Process refund if payment was made
     let refundInitiated = false;
     if (order.amountPaid > 0 && order.paymentStatus === "PAID") {
-      await processRefund(order, "Order cancelled by kitchen", "KITCHEN");
+      await processRefund(order, `Order cancelled by ${cancelledByLabel}`, cancelledBy);
       refundInitiated = true;
       log.info("cancelOrder", "Refund initiated", { orderId: id, amount: order.amountPaid });
     }
 
     const duration = Date.now() - startTime;
-    log.event("ORDER_CANCELLED", "Order cancelled by kitchen", {
+    log.event("ORDER_CANCELLED", `Order cancelled by ${cancelledByLabel}`, {
       orderId: id,
       orderNumber: order.orderNumber,
       reason,
@@ -1426,15 +1449,17 @@ export async function updateOrderStatus(req, res) {
       );
     }
 
-    // Validate status transition
-    const validNextStatuses = getNextValidStatuses(order.status);
-    if (!validNextStatuses.includes(status)) {
-      return sendResponse(
-        res,
-        400,
-        false,
-        `Cannot transition from ${order.status} to ${status}`
-      );
+    // Validate status transition (admin can bypass)
+    if (!isAdmin) {
+      const validNextStatuses = getNextValidStatuses(order.status);
+      if (!validNextStatuses.includes(status)) {
+        return sendResponse(
+          res,
+          400,
+          false,
+          `Cannot transition from ${order.status} to ${status}`
+        );
+      }
     }
 
     await order.updateStatus(status, staffId, notes);
@@ -1502,16 +1527,18 @@ export async function updateDeliveryStatus(req, res) {
       return sendResponse(res, 403, false, "Not assigned to this order");
     }
 
-    // Validate status transition
-    const validNextStatuses = getNextValidStatuses(order.status);
-    if (!validNextStatuses.includes(status)) {
-      log.warn("updateDeliveryStatus", "Invalid status transition", { orderId: id, from: order.status, to: status });
-      return sendResponse(
-        res,
-        400,
-        false,
-        `Cannot transition from ${order.status} to ${status}`
-      );
+    // Validate status transition (admin can bypass)
+    if (!isAdmin) {
+      const validNextStatuses = getNextValidStatuses(order.status);
+      if (!validNextStatuses.includes(status)) {
+        log.warn("updateDeliveryStatus", "Invalid status transition", { orderId: id, from: order.status, to: status });
+        return sendResponse(
+          res,
+          400,
+          false,
+          `Cannot transition from ${order.status} to ${status}`
+        );
+      }
     }
 
     const previousStatus = order.status;
@@ -1525,14 +1552,21 @@ export async function updateDeliveryStatus(req, res) {
       };
     }
 
-    await order.updateStatus(status, driverId, notes);
+    // If setting PICKED_UP, automatically transition to OUT_FOR_DELIVERY
+    if (status === "PICKED_UP") {
+      await order.updateStatus("PICKED_UP", driverId, notes || "Picked up by driver");
+      await order.updateStatus("OUT_FOR_DELIVERY", driverId, "Driver left for delivery");
+    } else {
+      await order.updateStatus(status, driverId, notes);
+    }
 
+    const finalStatus = status === "PICKED_UP" ? "OUT_FOR_DELIVERY" : status;
     const duration = Date.now() - startTime;
-    log.event("DELIVERY_STATUS_UPDATED", `Order ${status.toLowerCase()}`, {
+    log.event("DELIVERY_STATUS_UPDATED", `Order ${finalStatus.toLowerCase()}`, {
       orderId: id,
       orderNumber: order.orderNumber,
       previousStatus,
-      newStatus: status,
+      newStatus: finalStatus,
       driverId: driverId.toString(),
       hasProofOfDelivery: !!proofOfDelivery,
     });

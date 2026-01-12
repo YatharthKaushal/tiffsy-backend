@@ -83,6 +83,73 @@ export const fcmTokenSchema = Joi.object({
   deviceId: Joi.string().trim().allow("", null),
 });
 
+/**
+ * Vehicle document schema
+ */
+const vehicleDocumentSchema = Joi.object({
+  type: Joi.string().valid("RC", "INSURANCE", "PUC", "OTHER").required().messages({
+    "any.required": "Document type is required",
+    "any.only": "Document type must be RC, INSURANCE, PUC, or OTHER",
+  }),
+  imageUrl: Joi.string().uri().required().messages({
+    "any.required": "Document image URL is required",
+    "string.uri": "Document image must be a valid URL",
+  }),
+  expiryDate: Joi.date().optional(),
+});
+
+/**
+ * Register driver after Firebase auth
+ * Driver self-registration with vehicle details
+ */
+export const registerDriverSchema = Joi.object({
+  name: Joi.string().min(2).max(100).trim().required().messages({
+    "any.required": "Name is required",
+    "string.empty": "Name is required",
+    "string.min": "Name must be at least 2 characters",
+  }),
+  email: Joi.string().email().allow("", null),
+  profileImage: Joi.string().uri().allow("", null),
+
+  // Driver's license details
+  licenseNumber: Joi.string().trim().required().messages({
+    "any.required": "Driver's license number is required",
+    "string.empty": "Driver's license number is required",
+  }),
+  licenseImageUrl: Joi.string().uri().required().messages({
+    "any.required": "Driver's license image is required",
+    "string.uri": "License image must be a valid URL",
+  }),
+  licenseExpiryDate: Joi.date().greater("now").optional().messages({
+    "date.greater": "License expiry date must be in the future",
+  }),
+
+  // Vehicle details
+  vehicleName: Joi.string().trim().required().messages({
+    "any.required": "Vehicle name is required",
+    "string.empty": "Vehicle name is required",
+  }),
+  vehicleNumber: Joi.string()
+    .trim()
+    .uppercase()
+    .pattern(/^[A-Z]{2}[0-9]{1,2}[A-Z]{0,3}[0-9]{4}$/)
+    .required()
+    .messages({
+      "any.required": "Vehicle number is required",
+      "string.pattern.base": "Invalid vehicle number format (e.g., MH12AB1234)",
+    }),
+  vehicleType: Joi.string().valid("BIKE", "SCOOTER", "BICYCLE", "OTHER").required().messages({
+    "any.required": "Vehicle type is required",
+    "any.only": "Vehicle type must be BIKE, SCOOTER, BICYCLE, or OTHER",
+  }),
+
+  // Vehicle documents
+  vehicleDocuments: Joi.array().items(vehicleDocumentSchema).min(1).required().messages({
+    "any.required": "At least one vehicle document is required",
+    "array.min": "At least one vehicle document is required",
+  }),
+});
+
 export default {
   syncUserSchema,
   registerUserSchema,
@@ -90,4 +157,5 @@ export default {
   adminLoginSchema,
   changePasswordSchema,
   fcmTokenSchema,
+  registerDriverSchema,
 };

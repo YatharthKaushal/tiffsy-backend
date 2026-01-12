@@ -116,6 +116,73 @@ const userSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
     },
+
+    // For DRIVER role - Driver details
+    driverDetails: {
+      licenseNumber: {
+        type: String,
+        trim: true,
+      },
+      licenseImageUrl: {
+        type: String,
+        trim: true,
+      },
+      licenseExpiryDate: {
+        type: Date,
+      },
+      vehicleName: {
+        type: String,
+        trim: true,
+      },
+      vehicleNumber: {
+        type: String,
+        trim: true,
+        uppercase: true,
+      },
+      vehicleType: {
+        type: String,
+        enum: ["BIKE", "SCOOTER", "BICYCLE", "OTHER"],
+      },
+      vehicleDocuments: [
+        {
+          type: {
+            type: String,
+            enum: ["RC", "INSURANCE", "PUC", "OTHER"],
+          },
+          imageUrl: {
+            type: String,
+            trim: true,
+          },
+          expiryDate: Date,
+        },
+      ],
+    },
+
+    // For DRIVER role - Approval workflow
+    approvalStatus: {
+      type: String,
+      enum: {
+        values: ["PENDING", "APPROVED", "REJECTED"],
+        message: "Invalid approval status",
+      },
+    },
+
+    approvalDetails: {
+      approvedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+      approvedAt: Date,
+      rejectedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+      rejectedAt: Date,
+      rejectionReason: {
+        type: String,
+        trim: true,
+      },
+    },
   },
   {
     timestamps: true,
@@ -137,6 +204,7 @@ userSchema.index({ role: 1, status: 1 }); // Compound index for role-based queri
 userSchema.index({ kitchenId: 1 }, { sparse: true });
 userSchema.index({ username: 1 }, { unique: true, sparse: true });
 userSchema.index({ firebaseUid: 1 }, { sparse: true });
+userSchema.index({ role: 1, approvalStatus: 1 }, { sparse: true }); // For driver approval queries
 
 // Validate kitchenId is set for KITCHEN_STAFF
 userSchema.pre("save", async function () {
@@ -147,7 +215,17 @@ userSchema.pre("save", async function () {
 
 // Instance method to check if user can login
 userSchema.methods.canLogin = function () {
+  // For drivers, must be approved AND active
+  if (this.role === "DRIVER") {
+    return this.status === "ACTIVE" && this.approvalStatus === "APPROVED";
+  }
   return this.status === "ACTIVE";
+};
+
+// Instance method to check driver approval status
+userSchema.methods.isDriverApproved = function () {
+  if (this.role !== "DRIVER") return true;
+  return this.approvalStatus === "APPROVED";
 };
 
 // Static method to find active users by role

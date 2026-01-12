@@ -12,6 +12,7 @@ import {
   cancelOrderSchema,
   updateOrderStatusSchema,
   updateDeliveryStatusSchema,
+  adminUpdateStatusSchema,
   adminCancelOrderSchema,
   queryAllOrdersSchema,
   rateOrderSchema,
@@ -91,6 +92,16 @@ router.get(
   adminAuthMiddleware,
   adminMiddleware,
   orderController.getOrderStats
+);
+
+// Admin update order status (allows any status)
+router.patch(
+  "/admin/:id/status",
+  adminAuthMiddleware,
+  adminMiddleware,
+  validateParams(idParamSchema),
+  validateBody(adminUpdateStatusSchema),
+  orderController.adminUpdateStatus
 );
 
 /**

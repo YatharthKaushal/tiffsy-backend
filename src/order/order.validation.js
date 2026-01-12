@@ -203,6 +203,21 @@ export const updateDeliveryStatusSchema = Joi.object({
 });
 
 /**
+ * Admin update order status (allows all statuses)
+ */
+export const adminUpdateStatusSchema = Joi.object({
+  status: Joi.string()
+    .valid(...ORDER_STATUSES)
+    .required()
+    .messages({
+      "any.required": "Status is required",
+      "any.only": `Status must be one of: ${ORDER_STATUSES.join(", ")}`,
+    }),
+  notes: Joi.string().max(500).trim().allow("", null),
+  reason: Joi.string().max(500).trim().allow("", null),
+});
+
+/**
  * Admin cancel order
  */
 export const adminCancelOrderSchema = Joi.object({
@@ -251,6 +266,7 @@ export default {
   cancelOrderSchema,
   updateOrderStatusSchema,
   updateDeliveryStatusSchema,
+  adminUpdateStatusSchema,
   adminCancelOrderSchema,
   queryAllOrdersSchema,
   rateOrderSchema,

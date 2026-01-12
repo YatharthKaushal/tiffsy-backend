@@ -1792,6 +1792,52 @@ export async function getOrderStats(req, res) {
   }
 }
 
+/**
+ * Admin update order status (allows any status)
+ * @route PATCH /api/orders/admin/:id/status
+ * @access Admin
+ */
+export async function adminUpdateStatus(req, res) {
+  try {
+    const { id } = req.params;
+    const { status, notes, reason } = req.body;
+    const adminId = req.user._id;
+
+    const order = await Order.findById(id);
+    if (!order) {
+      return sendResponse(res, 404, false, "Order not found");
+    }
+
+    const previousStatus = order.status;
+
+    // Update order status using the model's updateStatus method
+    await order.updateStatus(status, adminId, notes || reason);
+
+    // Log audit
+    safeAuditCreate({
+      action: "UPDATE_ORDER_STATUS",
+      entityType: "ORDER",
+      entityId: order._id,
+      performedBy: adminId,
+      details: {
+        previousStatus,
+        newStatus: status,
+        notes: notes || reason,
+        bypassedValidation: true,
+      },
+    });
+
+    return sendResponse(res, 200, true, "Order status updated", {
+      order,
+      previousStatus,
+      newStatus: status,
+    });
+  } catch (error) {
+    console.log("Admin update status error:", error);
+    return sendResponse(res, 500, false, "Failed to update order status");
+  }
+}
+
 export default {
   createOrder,
   getOrderPricing,
@@ -1810,4 +1856,5 @@ export default {
   getAllOrders,
   adminCancelOrder,
   getOrderStats,
+  adminUpdateStatus,
 };

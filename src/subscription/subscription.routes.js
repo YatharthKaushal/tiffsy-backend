@@ -118,7 +118,7 @@ router.patch(
 router.post(
   "/purchase",
   adminAuthMiddleware,
-  roleMiddleware("CUSTOMER"),
+  roleMiddleware(["CUSTOMER", "ADMIN"]),
   validateBody(purchaseSubscriptionSchema),
   subscriptionController.purchaseSubscription
 );
@@ -127,7 +127,7 @@ router.post(
 router.get(
   "/my-subscriptions",
   adminAuthMiddleware,
-  roleMiddleware("CUSTOMER"),
+  roleMiddleware(["CUSTOMER", "ADMIN"]),
   validateQuery(queryMySubscriptionsSchema),
   subscriptionController.getMySubscriptions
 );
@@ -161,7 +161,7 @@ router.get(
 router.post(
   "/:id/cancel",
   adminAuthMiddleware,
-  roleMiddleware("CUSTOMER"),
+  roleMiddleware(["CUSTOMER", "ADMIN"]),
   validateParams(idParamSchema),
   validateBody(cancelSubscriptionSchema),
   subscriptionController.cancelSubscription

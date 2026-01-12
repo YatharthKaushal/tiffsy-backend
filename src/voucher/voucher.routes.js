@@ -44,7 +44,7 @@ router.get(
 router.get(
   "/balance",
   adminAuthMiddleware,
-  roleMiddleware("CUSTOMER"),
+  roleMiddleware(["CUSTOMER", "ADMIN"]),
   voucherController.getVoucherBalance
 );
 
@@ -52,7 +52,7 @@ router.get(
 router.get(
   "/my-vouchers",
   adminAuthMiddleware,
-  roleMiddleware("CUSTOMER"),
+  roleMiddleware(["CUSTOMER", "ADMIN"]),
   validateQuery(queryVouchersSchema),
   voucherController.getMyVouchers
 );
@@ -61,7 +61,7 @@ router.get(
 router.post(
   "/check-eligibility",
   adminAuthMiddleware,
-  roleMiddleware("CUSTOMER"),
+  roleMiddleware(["CUSTOMER", "ADMIN"]),
   validateBody(checkEligibilitySchema),
   voucherController.checkVoucherEligibility
 );

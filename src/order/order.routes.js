@@ -33,7 +33,7 @@ const idParamSchema = Joi.object({
 router.post(
   "/calculate-pricing",
   adminAuthMiddleware,
-  roleMiddleware("CUSTOMER"),
+  roleMiddleware(["CUSTOMER", "ADMIN"]),
   validateBody(calculatePricingSchema),
   orderController.getOrderPricing
 );
@@ -42,7 +42,7 @@ router.post(
 router.get(
   "/my-orders",
   adminAuthMiddleware,
-  roleMiddleware("CUSTOMER"),
+  roleMiddleware(["CUSTOMER", "ADMIN"]),
   validateQuery(queryMyOrdersSchema),
   orderController.getMyOrders
 );
@@ -101,7 +101,7 @@ router.get(
 router.post(
   "/",
   adminAuthMiddleware,
-  roleMiddleware("CUSTOMER"),
+  roleMiddleware(["CUSTOMER", "ADMIN"]),
   validateBody(createOrderSchema),
   orderController.createOrder
 );
@@ -122,7 +122,7 @@ router.get(
 router.get(
   "/:id/track",
   adminAuthMiddleware,
-  roleMiddleware("CUSTOMER"),
+  roleMiddleware(["CUSTOMER", "ADMIN"]),
   validateParams(idParamSchema),
   orderController.trackOrder
 );
@@ -131,7 +131,7 @@ router.get(
 router.post(
   "/:id/rate",
   adminAuthMiddleware,
-  roleMiddleware("CUSTOMER"),
+  roleMiddleware(["CUSTOMER", "ADMIN"]),
   validateParams(idParamSchema),
   validateBody(rateOrderSchema),
   orderController.rateOrder
@@ -141,7 +141,7 @@ router.post(
 router.patch(
   "/:id/customer-cancel",
   adminAuthMiddleware,
-  roleMiddleware("CUSTOMER"),
+  roleMiddleware(["CUSTOMER", "ADMIN"]),
   validateParams(idParamSchema),
   validateBody(cancelOrderSchema),
   orderController.customerCancelOrder

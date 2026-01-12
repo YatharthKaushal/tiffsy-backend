@@ -21,7 +21,7 @@ const router = Router();
 router.get(
   "/profile/status",
   adminAuthMiddleware,
-  roleMiddleware("CUSTOMER"),
+  roleMiddleware(["CUSTOMER", "ADMIN"]),
   customerController.checkProfileCompleteness
 );
 
@@ -29,7 +29,7 @@ router.get(
 router.post(
   "/profile/complete",
   adminAuthMiddleware,
-  roleMiddleware("CUSTOMER"),
+  roleMiddleware(["CUSTOMER", "ADMIN"]),
   validateBody(completeProfileSchema),
   customerController.completeProfile
 );
@@ -38,7 +38,7 @@ router.post(
 router.get(
   "/profile",
   adminAuthMiddleware,
-  roleMiddleware("CUSTOMER"),
+  roleMiddleware(["CUSTOMER", "ADMIN"]),
   customerController.getProfile
 );
 
@@ -46,7 +46,7 @@ router.get(
 router.put(
   "/profile",
   adminAuthMiddleware,
-  roleMiddleware("CUSTOMER"),
+  roleMiddleware(["CUSTOMER", "ADMIN"]),
   validateBody(updateProfileSchema),
   customerController.updateProfile
 );
@@ -55,7 +55,7 @@ router.put(
 router.patch(
   "/profile/dietary-preferences",
   adminAuthMiddleware,
-  roleMiddleware("CUSTOMER"),
+  roleMiddleware(["CUSTOMER", "ADMIN"]),
   validateBody(updateDietarySchema),
   customerController.updateDietaryPreferences
 );
@@ -64,7 +64,7 @@ router.patch(
 router.patch(
   "/profile/image",
   adminAuthMiddleware,
-  roleMiddleware("CUSTOMER"),
+  roleMiddleware(["CUSTOMER", "ADMIN"]),
   customerController.updateProfileImage
 );
 
@@ -72,7 +72,7 @@ router.patch(
 router.delete(
   "/profile",
   adminAuthMiddleware,
-  roleMiddleware("CUSTOMER"),
+  roleMiddleware(["CUSTOMER", "ADMIN"]),
   validateBody(deleteAccountSchema),
   customerController.deleteAccount
 );
@@ -87,7 +87,7 @@ router.delete(
 router.get(
   "/home",
   adminAuthMiddleware,
-  roleMiddleware("CUSTOMER"),
+  roleMiddleware(["CUSTOMER", "ADMIN"]),
   customerController.getHomeFeed
 );
 
@@ -97,7 +97,7 @@ router.get(
 router.get(
   "/menu/:mealWindow",
   adminAuthMiddleware,
-  roleMiddleware("CUSTOMER"),
+  roleMiddleware(["CUSTOMER", "ADMIN"]),
   customerController.getMealMenu
 );
 
@@ -106,7 +106,7 @@ router.get(
 router.post(
   "/check-serviceability",
   adminAuthMiddleware,
-  roleMiddleware("CUSTOMER"),
+  roleMiddleware(["CUSTOMER", "ADMIN"]),
   customerController.checkServiceability
 );
 

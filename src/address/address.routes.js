@@ -41,7 +41,7 @@ router.get(
 router.post(
   "/",
   adminAuthMiddleware,
-  roleMiddleware("CUSTOMER"),
+  roleMiddleware(["CUSTOMER", "ADMIN"]),
   validateBody(createAddressSchema),
   addressController.createAddress
 );
@@ -50,7 +50,7 @@ router.post(
 router.get(
   "/",
   adminAuthMiddleware,
-  roleMiddleware("CUSTOMER"),
+  roleMiddleware(["CUSTOMER", "ADMIN"]),
   validateQuery(addressesQuerySchema),
   addressController.getAddresses
 );
@@ -59,7 +59,7 @@ router.get(
 router.get(
   "/:id",
   adminAuthMiddleware,
-  roleMiddleware("CUSTOMER"),
+  roleMiddleware(["CUSTOMER", "ADMIN"]),
   validateParams(idParamSchema),
   addressController.getAddressById
 );
@@ -68,7 +68,7 @@ router.get(
 router.put(
   "/:id",
   adminAuthMiddleware,
-  roleMiddleware("CUSTOMER"),
+  roleMiddleware(["CUSTOMER", "ADMIN"]),
   validateParams(idParamSchema),
   validateBody(updateAddressSchema),
   addressController.updateAddress
@@ -78,7 +78,7 @@ router.put(
 router.delete(
   "/:id",
   adminAuthMiddleware,
-  roleMiddleware("CUSTOMER"),
+  roleMiddleware(["CUSTOMER", "ADMIN"]),
   validateParams(idParamSchema),
   addressController.deleteAddress
 );
@@ -87,7 +87,7 @@ router.delete(
 router.patch(
   "/:id/default",
   adminAuthMiddleware,
-  roleMiddleware("CUSTOMER"),
+  roleMiddleware(["CUSTOMER", "ADMIN"]),
   validateParams(idParamSchema),
   addressController.setDefaultAddress
 );
@@ -96,7 +96,7 @@ router.patch(
 router.get(
   "/:id/kitchens",
   adminAuthMiddleware,
-  roleMiddleware("CUSTOMER"),
+  roleMiddleware(["CUSTOMER", "ADMIN"]),
   validateParams(idParamSchema),
   validateQuery(getKitchensQuerySchema),
   addressController.getServiceableKitchens

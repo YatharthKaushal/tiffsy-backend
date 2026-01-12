@@ -49,7 +49,7 @@ router.post(
 router.get(
   "/my-refunds",
   adminAuthMiddleware,
-  roleMiddleware("CUSTOMER"),
+  roleMiddleware(["CUSTOMER", "ADMIN"]),
   validateQuery(queryMyRefundsSchema),
   refundController.getMyRefunds
 );

@@ -27,7 +27,7 @@ const idParamSchema = Joi.object({
 router.get(
   "/available",
   adminAuthMiddleware,
-  roleMiddleware("CUSTOMER"),
+  roleMiddleware(["CUSTOMER", "ADMIN"]),
   validateQuery(queryAvailableCouponsSchema),
   couponController.getAvailableCoupons
 );
@@ -36,7 +36,7 @@ router.get(
 router.post(
   "/validate",
   adminAuthMiddleware,
-  roleMiddleware("CUSTOMER"),
+  roleMiddleware(["CUSTOMER", "ADMIN"]),
   validateBody(validateCouponSchema),
   couponController.validateCoupon
 );

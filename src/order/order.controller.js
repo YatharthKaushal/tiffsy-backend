@@ -1225,9 +1225,10 @@ export async function acceptOrder(req, res) {
     log.event("ORDER_ACCEPTED", "Order accepted and preparation started", {
       orderId: id,
       orderNumber: order.orderNumber,
-      kitchenId: kitchenId.toString(),
+      kitchenId: kitchenId?.toString() || order.kitchenId.toString(),
       staffId: staffId.toString(),
       estimatedPrepTime,
+      acceptedBy: isAdmin ? "ADMIN" : "KITCHEN_STAFF",
     });
     log.response("acceptOrder", 200, true, duration);
 

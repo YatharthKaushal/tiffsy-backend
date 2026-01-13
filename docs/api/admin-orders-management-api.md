@@ -223,12 +223,12 @@ Authorization: Bearer <admin_token>
 
 ---
 
-### 3. Update Order Status (Admin)
+### 3. Update Order Status (Admin - Full Access)
 
-Admin can change order status directly, bypassing normal transition rules.
+Admin-specific endpoint that allows changing order status to **any valid status**, bypassing normal transition rules.
 
 ```
-PATCH /api/orders/:id/status
+PATCH /api/orders/admin/:id/status
 Authorization: Bearer <admin_token>
 Content-Type: application/json
 ```
@@ -236,8 +236,9 @@ Content-Type: application/json
 **Request Body:**
 ```json
 {
-  "status": "READY",
-  "notes": "Manually updated by admin"
+  "status": "ACCEPTED",
+  "notes": "Manually updated by admin",
+  "reason": "Optional reason for the change"
 }
 ```
 
@@ -252,26 +253,54 @@ Content-Type: application/json
   "data": {
     "order": {
       "_id": "...",
-      "status": "READY",
+      "status": "ACCEPTED",
       "statusTimeline": [
         ...previousStatuses,
         {
-          "status": "READY",
+          "status": "ACCEPTED",
           "timestamp": "2025-01-12T11:00:00Z",
           "updatedBy": "<admin_user_id>",
           "notes": "Manually updated by admin"
         }
       ],
-      "preparedAt": "2025-01-12T11:00:00Z"
-    }
+      "acceptedAt": "2025-01-12T11:00:00Z"
+    },
+    "previousStatus": "PLACED",
+    "newStatus": "ACCEPTED"
   }
 }
 ```
 
 **Notes:**
-- Admin bypasses status transition validation
-- All transitions are logged in `statusTimeline`
-- Corresponding timestamps are set automatically (e.g., `preparedAt` for READY)
+- Admin bypasses status transition validation completely
+- All transitions are logged in `statusTimeline` and audit trail
+- Corresponding timestamps are set automatically (e.g., `acceptedAt` for ACCEPTED, `preparedAt` for READY)
+- Audit log includes `bypassedValidation: true` flag
+
+---
+
+### 3b. Update Order Status (Kitchen Staff Endpoint)
+
+> **Note:** This endpoint is restricted to `PREPARING` and `READY` statuses only. For full status control, admins should use the `/api/orders/admin/:id/status` endpoint above.
+
+```
+PATCH /api/orders/:id/status
+Authorization: Bearer <admin_token>
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "status": "READY",
+  "notes": "Food is ready for pickup"
+}
+```
+
+**Valid Status Values (Limited):**
+- `PREPARING`, `READY`
+
+This endpoint is designed for kitchen staff and only allows transitioning orders to PREPARING or READY status.
 
 ---
 
@@ -906,13 +935,15 @@ All admin actions are tracked with:
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/api/orders/admin/all` | List all orders |
+| GET | `/api/orders/admin/stats` | Get order statistics |
 | GET | `/api/orders/:id` | Get order details |
-| PATCH | `/api/orders/:id/status` | Update status directly |
+| PATCH | `/api/orders/admin/:id/status` | **Admin: Update to ANY status** |
+| PATCH | `/api/orders/:id/status` | Kitchen: Update to PREPARING/READY only |
 | PATCH | `/api/orders/:id/accept` | Accept order |
 | PATCH | `/api/orders/:id/reject` | Reject order |
 | PATCH | `/api/orders/:id/cancel` | Cancel (kitchen) |
 | PATCH | `/api/orders/:id/customer-cancel` | Cancel (customer) |
-| PATCH | `/api/orders/:id/admin-cancel` | Admin cancel |
+| PATCH | `/api/orders/:id/admin-cancel` | Admin cancel with options |
 | GET | `/api/orders/:id/track` | Track order |
 
 ### Delivery Endpoints

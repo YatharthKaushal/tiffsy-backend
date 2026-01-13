@@ -1700,11 +1700,14 @@ export async function adminCancelOrder(req, res) {
 
     // Log audit
     safeAuditCreate({
-      action: "CANCEL_ORDER",
+      action: "CANCEL",
       entityType: "ORDER",
       entityId: order._id,
-      performedBy: adminId,
-      details: { reason, refundInitiated, vouchersRestored },
+      userId: adminId,
+      userRole: req.user.role,
+      userName: req.user.name || req.user.username || "Admin",
+      reason,
+      notes: `Refund: ${refundInitiated ? "Yes" : "No"}, Vouchers restored: ${vouchersRestored}`,
     });
 
     return sendResponse(res, 200, true, "Order cancelled by admin", {
@@ -1815,16 +1818,17 @@ export async function adminUpdateStatus(req, res) {
 
     // Log audit
     safeAuditCreate({
-      action: "UPDATE_ORDER_STATUS",
+      action: "UPDATE",
       entityType: "ORDER",
       entityId: order._id,
-      performedBy: adminId,
-      details: {
-        previousStatus,
-        newStatus: status,
-        notes: notes || reason,
-        bypassedValidation: true,
-      },
+      userId: adminId,
+      userRole: req.user.role,
+      userName: req.user.name || req.user.username || "Admin",
+      previousValue: { status: previousStatus },
+      newValue: { status },
+      changedFields: ["status"],
+      notes: notes || reason,
+      reason: `Admin status update: ${previousStatus} → ${status}`,
     });
 
     return sendResponse(res, 200, true, "Order status updated", {

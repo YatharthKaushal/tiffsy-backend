@@ -669,12 +669,19 @@ export async function updateDeliveryStatus(req, res) {
       await assignment.save();
     }
 
-    // Update order status - auto-transition PICKED_UP to OUT_FOR_DELIVERY
+    // Update order status - map delivery assignment statuses to order statuses
     if (status === "PICKED_UP") {
       await order.updateStatus("PICKED_UP", driverId, notes || "Picked up by driver");
       await order.updateStatus("OUT_FOR_DELIVERY", driverId, "Driver left for delivery");
       await assignment.updateStatus("OUT_FOR_DELIVERY");
+    } else if (status === "EN_ROUTE") {
+      // Map EN_ROUTE (DeliveryAssignment) to OUT_FOR_DELIVERY (Order)
+      await order.updateStatus("OUT_FOR_DELIVERY", driverId, notes || "Driver en route to delivery location");
+    } else if (status === "ARRIVED") {
+      // Map ARRIVED (DeliveryAssignment) to OUT_FOR_DELIVERY (Order) - order stays out for delivery until actually delivered
+      await order.updateStatus("OUT_FOR_DELIVERY", driverId, notes || "Driver arrived at delivery location");
     } else {
+      // For other statuses (DELIVERED, FAILED, CANCELLED), use the same status
       await order.updateStatus(status, driverId, notes);
     }
 

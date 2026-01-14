@@ -1,3 +1,4 @@
+/*
  * Standardized API response helper
  * @param {object} res - Express response object
  * @param {number} status - HTTP status code (200, 201, 400, 500, etc)

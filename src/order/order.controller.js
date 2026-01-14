@@ -673,6 +673,15 @@ export async function getOrderPricing(req, res) {
       );
       const cutoffInfo = checkCutoffTime(mealWindow);
 
+      // Count main courses in the order to determine max redeemable vouchers
+      // Each voucher can cover one main course item
+      const mainCoursesInOrder = itemValidation.validatedItems.reduce(
+        (count, item) => {
+          return count + (item.isMainCourse ? item.quantity : 0);
+        },
+        0
+      );
+
       voucherEligibility.available = availableVouchers;
       voucherEligibility.cutoffPassed = cutoffInfo.isPastCutoff;
       voucherEligibility.cutoffInfo = {
@@ -680,9 +689,21 @@ export async function getOrderPricing(req, res) {
         currentTime: cutoffInfo.currentTime,
         message: cutoffInfo.message,
       };
-      voucherEligibility.canUse = cutoffInfo.isPastCutoff
-        ? 0
-        : Math.min(voucherCount, availableVouchers);
+
+      // Calculate actual usable vouchers based on:
+      // 1. Available vouchers in user's account
+      // 2. Number of main courses in the order (1 voucher per main course)
+      // 3. User preference (voucherCount) if they want to use fewer than max
+      // 4. Whether cutoff time has passed
+      if (cutoffInfo.isPastCutoff) {
+        voucherEligibility.canUse = 0;
+      } else {
+        const maxUsable = Math.min(availableVouchers, mainCoursesInOrder);
+        // If voucherCount is provided and > 0, respect user's preference (but cap at maxUsable)
+        voucherEligibility.canUse = voucherCount > 0
+          ? Math.min(voucherCount, maxUsable)
+          : maxUsable;
+      }
     }
 
     // Handle coupon validation

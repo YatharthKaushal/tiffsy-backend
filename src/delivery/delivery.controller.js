@@ -322,12 +322,18 @@ export async function dispatchBatches(req, res) {
     }
 
     // Find batches ready for dispatch
-    const batches = await DeliveryBatch.find({
+    const batchQuery = {
       status: "COLLECTING",
       mealWindow,
-      windowEndTime: { $lte: now },
       orderIds: { $ne: [] },
-    });
+    };
+
+    // Only apply windowEndTime filter if NOT forcing dispatch
+    if (!forceDispatch) {
+      batchQuery.windowEndTime = { $lte: now };
+    }
+
+    const batches = await DeliveryBatch.find(batchQuery);
 
     if (batches.length === 0) {
       return sendResponse(res, 200, true, "No batches to dispatch", {

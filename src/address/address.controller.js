@@ -394,7 +394,7 @@ export const getServiceableKitchens = async (req, res) => {
     };
 
     const kitchens = await Kitchen.find(filter)
-      .select("name code type premiumFlag gourmetFlag logo cuisineTypes averageRating")
+      .select("name code type premiumFlag gourmetFlag logo cuisineTypes averageRating operatingHours")
       .sort({ type: 1, averageRating: -1 });
 
     console.log(`> Kitchens for address ${id}: ${kitchens.length}`);

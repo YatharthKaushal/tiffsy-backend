@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import Voucher from "../schema/voucher.schema.js";
 import Subscription from "../schema/subscription.schema.js";
+import Kitchen from "../schema/kitchen.schema.js";
 import { checkCutoffTime } from "./config.service.js";
 
 /**
@@ -43,8 +44,11 @@ export async function redeemVouchersWithTransaction(userId, count, mealWindow, o
     return { success: true, vouchers: [], error: null };
   }
 
+  // Fetch kitchen to get accurate cutoff time from operating hours
+  const kitchen = await Kitchen.findById(kitchenId);
+
   // Check cutoff time before attempting redemption
-  const cutoffInfo = checkCutoffTime(mealWindow);
+  const cutoffInfo = checkCutoffTime(mealWindow, kitchen);
   if (cutoffInfo.isPastCutoff) {
     return {
       success: false,

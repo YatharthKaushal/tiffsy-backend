@@ -5,6 +5,7 @@ import { sendResponse } from "./utils/response.utils.js";
 import uploadRoutes from "./src/cloudinary/cloudinary.route.js";
 import authRoutes from "./src/auth/auth.routes.js";
 import customerRoutes from "./src/customer/customer.routes.js";
+import driverRoutes from "./src/driver/driver.routes.js";
 import zoneRoutes from "./src/zone/zone.routes.js";
 import addressRoutes from "./src/address/address.routes.js";
 import kitchenRoutes from "./src/kitchen/kitchen.routes.js";
@@ -45,6 +46,12 @@ router.use("/auth", authRoutes);
  * @desc Customer profile routes
  */
 router.use("/customer", customerRoutes);
+
+/**
+ * @route /api/driver
+ * @desc Driver profile and management routes
+ */
+router.use("/driver", driverRoutes);
 
 /**
  * @route /api/zones

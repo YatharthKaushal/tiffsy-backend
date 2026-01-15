@@ -112,11 +112,29 @@ export function getFeesConfig() {
  * Check if cutoff time has passed for a meal window
  * All times are in IST (Asia/Kolkata)
  * @param {string} mealWindow - LUNCH or DINNER
+ * @param {Object} kitchen - Optional kitchen object with operatingHours (if provided, uses kitchen's endTime)
  * @returns {Object} { isPastCutoff, cutoffTime, currentTime, message }
  */
-export function checkCutoffTime(mealWindow) {
-  const cutoffTimes = getCutoffTimes();
-  const cutoffTime = cutoffTimes[mealWindow];
+export function checkCutoffTime(mealWindow, kitchen = null) {
+  // Use kitchen-specific operating hours if provided, otherwise fall back to system config
+  let cutoffTime;
+
+  if (kitchen && kitchen.operatingHours) {
+    const mealWindowKey = mealWindow.toLowerCase(); // LUNCH -> lunch, DINNER -> dinner
+    const operatingHour = kitchen.operatingHours[mealWindowKey];
+
+    if (operatingHour && operatingHour.endTime) {
+      cutoffTime = operatingHour.endTime; // Use kitchen's endTime (e.g., "13:00" for lunch, "20:17" for dinner)
+    } else {
+      // Fallback to system config if kitchen doesn't have this meal window configured
+      const cutoffTimes = getCutoffTimes();
+      cutoffTime = cutoffTimes[mealWindow];
+    }
+  } else {
+    // No kitchen provided, use system config cutoff times
+    const cutoffTimes = getCutoffTimes();
+    cutoffTime = cutoffTimes[mealWindow];
+  }
 
   if (!cutoffTime) {
     return {

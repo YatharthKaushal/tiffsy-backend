@@ -34,10 +34,11 @@ const log = createLogger("OrderController");
  * Check if cutoff time has passed for a meal window
  * Uses the config service for DB-persisted cutoff times
  * @param {string} mealWindow - LUNCH or DINNER
+ * @param {Object} kitchen - Optional kitchen object with operatingHours
  * @returns {boolean}
  */
-function isCutoffPassed(mealWindow) {
-  const cutoffInfo = checkCutoffTime(mealWindow);
+function isCutoffPassed(mealWindow, kitchen = null) {
+  const cutoffInfo = checkCutoffTime(mealWindow, kitchen);
   return cutoffInfo.isPastCutoff;
 }
 
@@ -445,7 +446,7 @@ export async function createOrder(req, res) {
     if (
       menuType === "MEAL_MENU" &&
       voucherCount > 0 &&
-      isCutoffPassed(mealWindow)
+      isCutoffPassed(mealWindow, kitchen)
     ) {
       log.warn("createOrder", "Voucher cutoff passed", { mealWindow, voucherCount });
       return sendResponse(
@@ -646,6 +647,13 @@ export async function getOrderPricing(req, res) {
     log.request(req, "getOrderPricing");
     log.debug("getOrderPricing", "Calculating pricing", { kitchenId, menuType, itemCount: items?.length });
 
+    // Fetch kitchen to get operating hours
+    const kitchen = await Kitchen.findById(kitchenId);
+    if (!kitchen) {
+      log.warn("getOrderPricing", "Kitchen not found", { kitchenId });
+      return sendResponse(res, 404, false, "Kitchen not found");
+    }
+
     // Validate items
     const itemValidation = await validateOrderItems(
       items,
@@ -671,7 +679,7 @@ export async function getOrderPricing(req, res) {
         userId,
         mealWindow
       );
-      const cutoffInfo = checkCutoffTime(mealWindow);
+      const cutoffInfo = checkCutoffTime(mealWindow, kitchen);
 
       // Count main courses in the order to determine max redeemable vouchers
       // Each voucher can cover one main course item

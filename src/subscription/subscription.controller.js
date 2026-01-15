@@ -506,31 +506,8 @@ export const purchaseSubscription = async (req, res) => {
       return sendResponse(res, 400, "Plan has expired");
     }
 
-    // Check for existing active subscription for this plan
-    const existingSubscription = await Subscription.findOne({
-      userId,
-      planId,
-      status: "ACTIVE",
-      voucherExpiryDate: { $gte: now },
-    });
-
-    if (existingSubscription) {
-      return sendResponse(
-        res,
-        409,
-        "You already have an active subscription for this plan",
-        {
-          existingSubscription: {
-            _id: existingSubscription._id,
-            startDate: existingSubscription.startDate,
-            endDate: existingSubscription.endDate,
-            vouchersRemaining:
-              existingSubscription.totalVouchersIssued -
-              existingSubscription.vouchersUsed,
-          },
-        }
-      );
-    }
+    // Allow users to purchase multiple subscriptions (same or different plans)
+    // Users can stack subscriptions and accumulate vouchers
 
     // Calculate dates
     const startDate = now;

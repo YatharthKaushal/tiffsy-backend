@@ -186,6 +186,37 @@ export const getMyVouchers = async (req, res) => {
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
+    // Calculate complete summary from ALL user's vouchers (not just filtered/paginated results)
+    // This ensures frontend gets accurate counts regardless of pagination
+    const allVouchersSummary = await Voucher.aggregate([
+      { $match: { userId } },
+      {
+        $group: {
+          _id: "$status",
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    // Transform aggregation results to frontend-friendly format
+    const summary = {
+      available: 0,
+      redeemed: 0,
+      expired: 0,
+      restored: 0,
+      cancelled: 0,
+      total: 0,
+    };
+
+    for (const stat of allVouchersSummary) {
+      const statusKey = stat._id.toLowerCase();
+      summary[statusKey] = stat.count;
+      summary.total += stat.count;
+    }
+
+    // Calculate usable vouchers (available + restored)
+    summary.usable = summary.available + summary.restored;
+
     const [vouchers, total] = await Promise.all([
       Voucher.find(query)
         .populate("subscriptionId", "planSnapshot.name")
@@ -208,6 +239,7 @@ export const getMyVouchers = async (req, res) => {
 
     return sendResponse(res, 200, "My vouchers", {
       vouchers: vouchersWithInfo,
+      summary, // Complete summary of ALL vouchers regardless of pagination/filters
       pagination: {
         total,
         page: parseInt(page),

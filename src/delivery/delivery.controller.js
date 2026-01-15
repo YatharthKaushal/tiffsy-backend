@@ -19,7 +19,8 @@ let BATCH_CONFIG = {
   autoDispatchDelay: 0, // minutes after window end
 };
 
-// Window end times
+// DEPRECATED: Window end times (now fetched from Kitchen.operatingHours)
+// Keeping as fallback only in case kitchen doesn't have operatingHours configured
 const WINDOW_END_TIMES = {
   LUNCH: { hour: 13, minute: 0 },
   DINNER: { hour: 22, minute: 0 },
@@ -180,14 +181,35 @@ async function checkBatchComplete(batchId) {
 }
 
 /**
- * Get window end time for a meal window
+ * Get window end time for a meal window from kitchen operating hours
  * @param {string} mealWindow - LUNCH or DINNER
+ * @param {Object} kitchen - Kitchen document with operatingHours (optional)
  * @returns {Date} Window end time
  */
-function getWindowEndTime(mealWindow) {
-  const windowEnd = WINDOW_END_TIMES[mealWindow];
+function getWindowEndTime(mealWindow, kitchen = null) {
+  let endHour, endMinute;
+
+  // Try to get from kitchen's operating hours first
+  if (kitchen?.operatingHours) {
+    const mealWindowKey = mealWindow.toLowerCase(); // 'lunch' or 'dinner'
+    const operatingHours = kitchen.operatingHours[mealWindowKey];
+
+    if (operatingHours?.endTime) {
+      const [hour, minute] = operatingHours.endTime.split(':').map(Number);
+      endHour = hour;
+      endMinute = minute;
+    }
+  }
+
+  // Fallback to hardcoded values if kitchen doesn't have operating hours configured
+  if (endHour === undefined || endMinute === undefined) {
+    const windowEnd = WINDOW_END_TIMES[mealWindow];
+    endHour = windowEnd.hour;
+    endMinute = windowEnd.minute;
+  }
+
   const endTime = new Date();
-  endTime.setHours(windowEnd.hour, windowEnd.minute, 0, 0);
+  endTime.setHours(endHour, endMinute, 0, 0);
   return endTime;
 }
 
@@ -306,11 +328,18 @@ export async function autoBatchOrders(req, res) {
  */
 export async function dispatchBatches(req, res) {
   try {
-    const { mealWindow, forceDispatch = false } = req.body;
+    const { mealWindow, kitchenId, forceDispatch = false } = req.body;
     const now = new Date();
 
+    // Fetch kitchen to get dynamic operating hours from database
+    const kitchen = await Kitchen.findById(kitchenId);
+    if (!kitchen) {
+      return sendResponse(res, 404, false, "Kitchen not found");
+    }
+
     // FR-DLV-9: Verify meal window has ended before allowing dispatch
-    const windowEndTime = getWindowEndTime(mealWindow);
+    // Use kitchen's operating hours from database instead of hardcoded values
+    const windowEndTime = getWindowEndTime(mealWindow, kitchen);
     if (now < windowEndTime && !forceDispatch) {
       const remainingMinutes = Math.ceil((windowEndTime - now) / (1000 * 60));
       return sendResponse(
@@ -325,6 +354,7 @@ export async function dispatchBatches(req, res) {
     const batchQuery = {
       status: "COLLECTING",
       mealWindow,
+      kitchenId, // Filter by kitchen
       orderIds: { $ne: [] },
     };
 

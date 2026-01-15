@@ -53,6 +53,9 @@ export const dispatchBatchesSchema = Joi.object({
     .messages({
       "any.required": "Meal window is required for dispatch",
     }),
+  kitchenId: Joi.string().hex().length(24).required().messages({
+    "any.required": "Kitchen ID is required for dispatch",
+  }),
   forceDispatch: Joi.boolean().optional().default(false),
 });
 

@@ -68,7 +68,7 @@ export async function getDriverProfile(req, res) {
 
     // 3. Construct safe response
     return sendResponse(res, 200, true, "Driver profile retrieved", {
-      profile: {
+      user: {
         _id: driver._id,
         phone: driver.phone,
         name: driver.name,
@@ -151,7 +151,7 @@ export async function updateDriverProfile(req, res) {
     log.response("updateDriverProfile", 200, true, duration);
 
     return sendResponse(res, 200, true, "Profile updated successfully", {
-      profile: {
+      user: {
         _id: driver._id,
         phone: driver.phone,
         name: driver.name,

@@ -7,9 +7,9 @@ import { createLogger } from "../../utils/logger.utils.js";
 const log = createLogger("DriverController");
 
 /**
- * ============================================================================
+ * 
  * DRIVER PROFILE MANAGEMENT
- * ============================================================================
+ * 
  */
 
 /**
@@ -27,9 +27,10 @@ export async function getDriverProfile(req, res) {
       driverId: driverId.toString(),
     });
 
+    // 1. Fetch driver details
+    // using findOne to ensure we get fresh data from DB
     const driver = await User.findOne({
       _id: driverId,
-      role: "DRIVER",
       status: { $ne: "DELETED" },
     }).select("-passwordHash -fcmTokens");
 
@@ -40,12 +41,32 @@ export async function getDriverProfile(req, res) {
       return sendResponse(res, 404, false, "Driver profile not found");
     }
 
-    // Get driver statistics
-    const stats = await getDriverStats(driverId);
+    // Security check: If accessing as driver, ensure role is DRIVER
+    // If admin, they can access their own profile (though likely not useful here)
+    if (req.user.role === "DRIVER" && driver.role !== "DRIVER") {
+       return sendResponse(res, 403, false, "Role mismatch");
+    }
+
+    // 2. Safely get driver statistics
+    let stats = {
+      totalDeliveries: 0,
+      deliveredCount: 0,
+      failedCount: 0,
+      activeCount: 0,
+      successRate: 0,
+    };
+
+    try {
+      stats = await getDriverStats(driverId);
+    } catch (statsError) {
+      log.error("getDriverProfile", "Stats calculation failed, continuing...", { error: statsError });
+      // Continue with default stats
+    }
 
     const duration = Date.now() - startTime;
     log.response("getDriverProfile", 200, true, duration);
 
+    // 3. Construct safe response
     return sendResponse(res, 200, true, "Driver profile retrieved", {
       profile: {
         _id: driver._id,
@@ -54,8 +75,9 @@ export async function getDriverProfile(req, res) {
         email: driver.email,
         profileImage: driver.profileImage,
         status: driver.status,
-        approvalStatus: driver.approvalStatus,
-        driverDetails: driver.driverDetails,
+        approvalStatus: driver.approvalStatus || "PENDING", // Default to PENDING if missing
+        driverDetails: driver.driverDetails || {}, // Safe access
+        role: driver.role,
         lastLoginAt: driver.lastLoginAt,
         createdAt: driver.createdAt,
         updatedAt: driver.updatedAt,
@@ -68,6 +90,8 @@ export async function getDriverProfile(req, res) {
       error,
       duration: `${duration}ms`,
     });
+    // Even in catastrophic failure, try to return something if possible, 
+    // but usually 500 is appropriate here.
     return sendResponse(res, 500, false, "Failed to retrieve driver profile");
   }
 }
@@ -381,9 +405,9 @@ export async function getDriverStatistics(req, res) {
 }
 
 /**
- * ============================================================================
+ * 
  * HELPER FUNCTIONS
- * ============================================================================
+ * 
  */
 
 /**

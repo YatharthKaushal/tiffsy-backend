@@ -19,9 +19,9 @@ const router = Router();
  * Base path: /api/auth
  */
 
-// =====================
+// 
 // Firebase OTP Routes (Mobile Apps)
-// =====================
+// 
 
 /**
  * POST /api/auth/sync
@@ -98,9 +98,9 @@ router.delete(
   authController.removeFcmToken
 );
 
-// =====================
+// 
 // Admin Web Portal Routes (Username/Password)
-// =====================
+// 
 
 /**
  * POST /api/auth/admin/login

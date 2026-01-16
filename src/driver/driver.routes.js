@@ -15,10 +15,10 @@ import {
 const router = Router();
 
 /**
- * ============================================================================
+ * 
  * DRIVER PROFILE ROUTES
  * All routes require authentication and DRIVER role (or ADMIN)
- * ============================================================================
+ * 
  */
 
 /**

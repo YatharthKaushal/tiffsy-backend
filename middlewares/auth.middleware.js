@@ -78,6 +78,8 @@ export const authMiddleware = async (req, res, next) => {
     }
 
     // Check if driver is pending approval
+    // ALLOW PENDING DRIVERS TO ACCESS PROFILE
+    /* 
     if (user.role === "DRIVER" && user.approvalStatus === "PENDING") {
       console.log(`> Auth error: Driver pending approval: ${user._id}`);
       return sendResponse(
@@ -87,7 +89,8 @@ export const authMiddleware = async (req, res, next) => {
         null,
         "Your driver registration is pending admin approval"
       );
-    }
+    } 
+    */
 
     // Check if driver was rejected
     if (user.role === "DRIVER" && user.approvalStatus === "REJECTED") {
@@ -481,10 +484,13 @@ export const adminAuthMiddleware = async (req, res, next) => {
     }
 
     // Check if driver is pending approval
+    // ALLOW PENDING DRIVERS TO ACCESS PROFILE
+    /*
     if (user.role === "DRIVER" && user.approvalStatus === "PENDING") {
       console.log(`> Admin auth error: Driver pending approval: ${user._id}`);
       return sendResponse(res, 403, "Pending approval", null, "Your driver registration is pending admin approval");
     }
+    */
 
     // Check if driver was rejected
     if (user.role === "DRIVER" && user.approvalStatus === "REJECTED") {

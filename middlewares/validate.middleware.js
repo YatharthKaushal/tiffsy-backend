@@ -17,7 +17,7 @@ export const validateBody = (schema) => {
     if (error) {
       const errorMessage = error.details.map((d) => d.message).join(", ");
       console.log(`> Validation error (body): ${errorMessage}`);
-      return sendResponse(res, 400, "Validation failed", null, errorMessage);
+      return sendResponse(res, 400, false, "Validation failed", null, errorMessage);
     }
 
     req.body = value;
@@ -40,7 +40,7 @@ export const validateQuery = (schema) => {
     if (error) {
       const errorMessage = error.details.map((d) => d.message).join(", ");
       console.log(`> Validation error (query): ${errorMessage}`);
-      return sendResponse(res, 400, "Validation failed", null, errorMessage);
+      return sendResponse(res, 400, false, "Validation failed", null, errorMessage);
     }
 
     // Express 5.x: req.query is read-only, store validated values separately
@@ -73,7 +73,7 @@ export const validateParams = (schema) => {
     if (error) {
       const errorMessage = error.details.map((d) => d.message).join(", ");
       console.log(`> Validation error (params): ${errorMessage}`);
-      return sendResponse(res, 400, "Validation failed", null, errorMessage);
+      return sendResponse(res, 400, false, "Validation failed", null, errorMessage);
     }
 
     // Express 5.x: req.params is read-only, store validated values separately

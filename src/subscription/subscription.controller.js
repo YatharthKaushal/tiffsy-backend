@@ -93,9 +93,9 @@ const cancelUnusedVouchers = async (subscriptionId) => {
   return { cancelled: result.modifiedCount };
 };
 
-// ============================================================================
+// 
 // ADMIN - PLAN MANAGEMENT
-// ============================================================================
+// 
 
 /**
  * Create a new subscription plan
@@ -420,9 +420,9 @@ export const archivePlan = async (req, res) => {
   }
 };
 
-// ============================================================================
+// 
 // PUBLIC - PLAN BROWSING
-// ============================================================================
+// 
 
 /**
  * Get active plans for customer purchase
@@ -472,9 +472,9 @@ export const getActivePlans = async (req, res) => {
   }
 };
 
-// ============================================================================
+// 
 // CUSTOMER - SUBSCRIPTION OPERATIONS
-// ============================================================================
+// 
 
 /**
  * Purchase subscription
@@ -766,9 +766,9 @@ export const cancelSubscription = async (req, res) => {
   }
 };
 
-// ============================================================================
+// 
 // ADMIN - SUBSCRIPTION MANAGEMENT
-// ============================================================================
+// 
 
 /**
  * Get all subscriptions (admin view)

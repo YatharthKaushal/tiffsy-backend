@@ -268,6 +268,12 @@ const orderSchema = new mongoose.Schema(
     },
 
     scheduledFor: Date,
+
+    // Auto-ordering flag
+    isAutoOrder: {
+      type: Boolean,
+      default: false,
+    },
   },
   {
     timestamps: true,

@@ -146,6 +146,17 @@ router.get(
 );
 
 /**
+ * SYSTEM - AUTO-ORDER TRIGGER
+ * Protected by CRON_SECRET header for external schedulers
+ * NOTE: This route MUST be before /:id routes to avoid matching "trigger-auto-orders" as an ID
+ */
+router.post(
+  "/trigger-auto-orders",
+  validateBody(triggerAutoOrdersSchema),
+  subscriptionController.triggerAutoOrders
+);
+
+/**
  * SUBSCRIPTION BY ID ROUTES
  */
 
@@ -175,6 +186,49 @@ router.post(
   validateParams(idParamSchema),
   validateBody(adminCancelSubscriptionSchema),
   subscriptionController.adminCancelSubscription
+);
+
+/**
+ * AUTO-ORDERING ROUTES
+ */
+
+// Update auto-order settings
+router.put(
+  "/:id/settings",
+  adminAuthMiddleware,
+  roleMiddleware(["CUSTOMER", "ADMIN"]),
+  validateParams(idParamSchema),
+  validateBody(updateAutoOrderSettingsSchema),
+  subscriptionController.updateAutoOrderSettings
+);
+
+// Pause subscription auto-ordering
+router.post(
+  "/:id/pause",
+  adminAuthMiddleware,
+  roleMiddleware(["CUSTOMER", "ADMIN"]),
+  validateParams(idParamSchema),
+  validateBody(pauseSubscriptionSchema),
+  subscriptionController.pauseSubscription
+);
+
+// Resume subscription auto-ordering
+router.post(
+  "/:id/resume",
+  adminAuthMiddleware,
+  roleMiddleware(["CUSTOMER", "ADMIN"]),
+  validateParams(idParamSchema),
+  subscriptionController.resumeSubscription
+);
+
+// Skip a specific meal
+router.post(
+  "/:id/skip-meal",
+  adminAuthMiddleware,
+  roleMiddleware(["CUSTOMER", "ADMIN"]),
+  validateParams(idParamSchema),
+  validateBody(skipMealSchema),
+  subscriptionController.skipMeal
 );
 
 export default router;

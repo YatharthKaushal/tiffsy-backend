@@ -184,9 +184,10 @@ async function checkBatchComplete(batchId) {
 
 /**
  * Get window end time for a meal window from kitchen operating hours
+ * All times are in IST (Asia/Kolkata) timezone
  * @param {string} mealWindow - LUNCH or DINNER
  * @param {Object} kitchen - Kitchen document with operatingHours (optional)
- * @returns {Date} Window end time
+ * @returns {Date} Window end time in IST
  */
 function getWindowEndTime(mealWindow, kitchen = null) {
   let endHour, endMinute;
@@ -210,8 +211,16 @@ function getWindowEndTime(mealWindow, kitchen = null) {
     endMinute = windowEnd.minute;
   }
 
-  const endTime = new Date();
+  // Get current time in IST (Asia/Kolkata)
+  // All users are in India, server might be in different timezone (e.g., Render)
+  const now = new Date();
+  const istOffset = 5.5 * 60 * 60 * 1000; // IST is UTC+5:30
+  const istNow = new Date(now.getTime() + (now.getTimezoneOffset() * 60 * 1000) + istOffset);
+
+  // Create end time for today in IST
+  const endTime = new Date(istNow);
   endTime.setHours(endHour, endMinute, 0, 0);
+
   return endTime;
 }
 
@@ -274,7 +283,16 @@ export async function autoBatchOrders(req, res) {
     // Process each group
     for (const key of Object.keys(groups)) {
       const group = groups[key];
-      const windowEndTime = getWindowEndTime(group.mealWindow);
+
+      // Fetch kitchen to get operating hours from database
+      const kitchen = await Kitchen.findById(group.kitchenId);
+      if (!kitchen) {
+        console.log(`> Auto-batch: Kitchen ${group.kitchenId} not found, skipping group`);
+        continue;
+      }
+
+      // Get window end time using kitchen's operating hours
+      const windowEndTime = getWindowEndTime(group.mealWindow, kitchen);
 
       // Find or create batch
       const { batch, wasCreated } = await findOrCreateBatch(
@@ -339,19 +357,19 @@ export async function dispatchBatches(req, res) {
       return sendResponse(res, 404, false, "Kitchen not found");
     }
 
-    // FR-DLV-9: Verify order cutoff time has passed before allowing dispatch
-    // Use checkCutoffTime which returns the order cutoff time (e.g., 11:00 AM for LUNCH)
-    // NOT the delivery window end time (e.g., 7:30 PM)
-    const cutoffInfo = checkCutoffTime(mealWindow);
+    // FR-DLV-9: Verify meal window / order cutoff time has passed before allowing dispatch
+    // Pass kitchen to checkCutoffTime so it uses kitchen's operatingHours.endTime from database
+    // instead of system config default cutoff times
+    const cutoffInfo = checkCutoffTime(mealWindow, kitchen);
 
     if (!cutoffInfo.isPastCutoff && !forceDispatch) {
-      // Calculate remaining time until cutoff
+      // Calculate remaining time until cutoff / meal window ends
       const cutoffTimeStr = cutoffInfo.cutoffTime;
       return sendResponse(
         res,
         400,
         false,
-        `Cannot dispatch ${mealWindow} batches yet. Order cutoff is at ${cutoffTimeStr}. Current time: ${cutoffInfo.currentTime}. Use forceDispatch=true to override (Admin only).`
+        `Cannot dispatch ${mealWindow} batches yet. Meal window ends in ${cutoffInfo.currentTime} (cutoff: ${cutoffTimeStr}). Use forceDispatch=true to override (Admin only).`
       );
     }
 

@@ -441,6 +441,94 @@ export async function getAvailableBatches(req, res) {
 }
 
 /**
+ * Get driver's batch history
+ * @route GET /api/delivery/batches/driver/history
+ * @access Driver
+ * @returns {object} Response object with batches and single orders
+ * @example
+ * Response Body:
+ * {
+ *   "success": true,
+ *   "message": "Driver batch history retrieved",
+ *   "data": {
+ *     "batches": [
+ *       {
+ *         "batchId": "BATCH-2023...",
+ *         "status": "COMPLETED",
+ *         "totalOrders": 3,
+ *         "kitchen": { "name": "Kitchen 1", ... },
+ *         "orders": [ ... ]
+ *       }
+ *     ],
+ *     "singleOrders": []
+ *   }
+ * }
+ */
+export async function getDriverBatchHistory(req, res) {
+  try {
+    const driverId = req.user._id;
+
+    // 1. Get all batches assigned to this driver
+    //    Sort by most recent first
+    const batches = await DeliveryBatch.find({
+      driverId,
+      // Optional: Filter for completed statuses?
+      // status: { $in: ["COMPLETED", "PARTIAL_COMPLETE", "CANCELLED"] }
+      // Or just return all past batches including current one?
+      // "History" usually implies past, but seeing everything is safer unless specified.
+    })
+      .populate("kitchenId", "name address")
+      .populate("zoneId", "name city")
+      .sort({ createdAt: -1 });
+
+    const batchList = [];
+
+    for (const batch of batches) {
+      // Get orders for this batch
+      const orders = await Order.find({ _id: { $in: batch.orderIds } })
+        .select("orderNumber status deliveryAddress items grandTotal placedAt")
+        .sort({ "deliveryAddress.pincode": 1 }); // Just an example sort
+
+      batchList.push({
+        batchId: batch.batchNumber, // User asked for batchId which is usually the friendly ID
+        _id: batch._id,
+        status: batch.status,
+        date: batch.batchDate,
+        totalOrders: batch.orderIds.length,
+        kitchen: batch.kitchenId,
+        zone: batch.zoneId,
+        orders: orders,
+        // Add more fields if needed
+        driverAssignedAt: batch.driverAssignedAt,
+        completedAt: batch.completedAt,
+      });
+    }
+
+    // 2. Get single orders (assigned to driver but NO batch)
+    //    These might be ad-hoc assignments or errors
+    const singleOrders = await Order.find({
+      driverId,
+      batchId: null,
+    })
+      .populate("kitchenId", "name address")
+      .sort({ placedAt: -1 });
+
+    return sendResponse(res, 200, true, "Driver batch history retrieved", {
+      batches: batchList,
+      singleOrders,
+    });
+  } catch (error) {
+    console.log("Get driver batch history error:", error);
+    return sendResponse(
+      res,
+      500,
+      false,
+      "Failed to retrieve driver batch history"
+    );
+  }
+}
+
+/**
  * Accept a batch (first to accept gets it)
  * @route POST /api/delivery/batches/:batchId/accept
  * @access Driver
@@ -1322,6 +1410,7 @@ export default {
   autoBatchOrders,
   dispatchBatches,
   getAvailableBatches,
+  getDriverBatchHistory,
   acceptBatch,
   getMyBatch,
   updateBatchPickup,

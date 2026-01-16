@@ -60,6 +60,14 @@ router.get(
   deliveryController.getAvailableBatches
 );
 
+// Get driver batch history
+router.get(
+  "/batches/driver/history",
+  adminAuthMiddleware,
+  roleMiddleware(["DRIVER", "ADMIN"]),
+  deliveryController.getDriverBatchHistory
+);
+
 // Get my batch
 router.get(
   "/my-batch",

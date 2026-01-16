@@ -42,30 +42,49 @@ Get available voucher count for the authenticated user before checkout.
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2NzkyYWJjZDEyMzQ1Njc4OTBhYmNkZWYiLCJyb2xlIjoiQ1VTVE9NRVIiLCJpYXQiOjE3MDQ4NzM2MDB9.abc123
 ```
 
-**Query Parameters (optional):**
-
-```
-?mealType=LUNCH
-```
-
 **Response (200):**
 
 ```json
 {
   "message": "Voucher balance retrieved",
   "data": {
-    "total": 5,
-    "available": 5,
-    "redeemed": 3,
-    "expired": 1,
-    "byMealType": {
-      "LUNCH": 3,
-      "DINNER": 1,
-      "ANY": 1
+    "balance": {
+      "total": 10,
+      "available": 5,
+      "redeemed": 3,
+      "expired": 1,
+      "restored": 1,
+      "cancelled": 0
+    },
+    "expiringNext": {
+      "count": 2,
+      "date": "2025-01-15T23:59:59.000Z",
+      "daysRemaining": 5
+    },
+    "canRedeemToday": true,
+    "nextCutoff": {
+      "mealWindow": "LUNCH",
+      "cutoffTime": "11:00 AM",
+      "isPastCutoff": false,
+      "message": "You can use vouchers for LUNCH until 11:00 AM"
     }
   }
 }
 ```
+
+**Response Fields:**
+
+| Field | Description |
+|-------|-------------|
+| `balance.total` | Total vouchers ever assigned to user |
+| `balance.available` | Vouchers available for use (includes restored) |
+| `balance.redeemed` | Vouchers already used |
+| `balance.expired` | Vouchers that have expired |
+| `balance.restored` | Vouchers restored after order cancellation |
+| `balance.cancelled` | Vouchers cancelled by admin |
+| `expiringNext` | Info about vouchers expiring soonest |
+| `canRedeemToday` | Whether user can redeem vouchers today |
+| `nextCutoff` | Current/next meal window cutoff info |
 
 ---
 
@@ -337,17 +356,22 @@ Content-Type: application/json
       "createdAt": "2025-01-10T09:30:00.000Z",
       "updatedAt": "2025-01-10T09:30:00.000Z"
     },
-    "pricing": {
-      "subtotal": 345,
-      "charges": 63,
-      "discount": 0,
-      "voucherCoverage": 0,
-      "grandTotal": 408,
-      "amountToPay": 408
-    }
+    "vouchersUsed": 0,
+    "amountToPay": 408,
+    "paymentRequired": true,
+    "paymentAutoConfirmed": true
   }
 }
 ```
+
+**Additional Response Fields:**
+
+| Field | Description |
+|-------|-------------|
+| `vouchersUsed` | Number of vouchers redeemed for this order |
+| `amountToPay` | Final amount customer needs to pay |
+| `paymentRequired` | Whether payment gateway flow is needed |
+| `paymentAutoConfirmed` | Whether payment was auto-confirmed (dev mode) |
 
 ---
 
@@ -470,14 +494,10 @@ Content-Type: application/json
       "createdAt": "2025-01-10T09:30:00.000Z",
       "updatedAt": "2025-01-10T09:30:00.000Z"
     },
-    "pricing": {
-      "subtotal": 240,
-      "charges": 57.75,
-      "discount": 0,
-      "voucherCoverage": 240,
-      "grandTotal": 297.75,
-      "amountToPay": 0
-    }
+    "vouchersUsed": 2,
+    "amountToPay": 0,
+    "paymentRequired": false,
+    "paymentAutoConfirmed": false
   }
 }
 ```
@@ -632,14 +652,10 @@ Content-Type: application/json
       "createdAt": "2025-01-10T09:30:00.000Z",
       "updatedAt": "2025-01-10T09:30:00.000Z"
     },
-    "pricing": {
-      "subtotal": 345,
-      "charges": 63,
-      "discount": 0,
-      "voucherCoverage": 240,
-      "grandTotal": 408,
-      "amountToPay": 168
-    }
+    "vouchersUsed": 2,
+    "amountToPay": 168,
+    "paymentRequired": true,
+    "paymentAutoConfirmed": true
   }
 }
 ```
@@ -776,6 +792,7 @@ When requested voucher count exceeds available vouchers.
 - `NETBANKING` - Net banking
 - `VOUCHER_ONLY` - Order fully covered by vouchers
 - `OTHER` - Default/unspecified
+- `null` / empty - Payment method can be omitted (optional field)
 
 ---
 
@@ -786,3 +803,38 @@ When requested voucher count exceeds available vouchers.
 - `FAILED` - Payment failed
 - `REFUNDED` - Full refund processed
 - `PARTIALLY_REFUNDED` - Partial refund processed
+
+---
+
+## Voucher Status Values
+
+- `AVAILABLE` - Voucher can be used
+- `REDEEMED` - Voucher has been used for an order
+- `EXPIRED` - Voucher validity period has passed
+- `RESTORED` - Voucher restored after order cancellation (counts as available)
+- `CANCELLED` - Voucher cancelled by admin
+
+---
+
+## Developer Notes
+
+### Dev Mode Payment Auto-Confirm
+
+In non-production environments (`NODE_ENV !== 'production'`), payments are automatically confirmed:
+- Orders with `amountToPay > 0` are auto-set to `paymentStatus: "PAID"`
+- This bypasses actual payment gateway integration for easier testing
+- In production, actual payment processing is required
+
+### Voucher-Coupon Mutual Exclusivity
+
+The backend enforces strict separation:
+- **MEAL_MENU orders**: Can use vouchers (0-10), coupons NOT allowed
+- **ON_DEMAND_MENU orders**: Can use coupons, vouchers NOT allowed (must be 0)
+
+### Cutoff Time Configuration
+
+Default cutoff times (configurable via admin endpoint):
+- **LUNCH**: 11:00 AM IST
+- **DINNER**: 9:00 PM IST
+
+Vouchers cannot be used after the cutoff time for that meal window.

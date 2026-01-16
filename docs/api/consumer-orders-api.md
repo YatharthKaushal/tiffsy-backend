@@ -405,7 +405,7 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2NzkyY
   "message": "Order tracking info",
   "data": {
     "status": "OUT_FOR_DELIVERY",
-    "statusMessage": "Your order is on the way",
+    "statusMessage": "On the way",
     "timeline": [
       {
         "status": "PLACED",
@@ -444,6 +444,10 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2NzkyY
         "notes": null
       }
     ],
+    "customer": {
+      "name": "Rahul Verma",
+      "phone": "+919876543210"
+    },
     "driver": {
       "name": "Ajay Kumar",
       "phone": "+919123456789"
@@ -494,6 +498,10 @@ Content-Type: application/json
   "reason": "Changed my mind, will order later"
 }
 ```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| reason | string | Yes | Cancellation reason (min 5 chars) |
 
 **Response (200):**
 
@@ -572,6 +580,11 @@ Content-Type: application/json
 }
 ```
 
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| stars | number | Yes | Rating 1-5 stars |
+| comment | string | No | Optional review text (max 500 chars) |
+
 **Response (200):**
 
 ```json
@@ -647,13 +660,16 @@ Orders with these statuses are considered active and returned in the `activeOrde
 ## Cancellation Rules
 
 Non-voucher orders:
-- Can be cancelled within 10 minutes of placing (configurable)
+- Can be cancelled within 10 minutes of placing (configurable via SystemConfig)
+- Cannot be cancelled after status becomes PREPARING
 
 Voucher orders:
-- Can be cancelled anytime before pickup
-- Vouchers only restored if cancelled before meal window cutoff (11:00 for LUNCH, 21:00 for DINNER)
+- Can be cancelled anytime before pickup (statuses: PLACED, ACCEPTED, PREPARING, READY)
+- Vouchers only restored if cancelled **before** meal window cutoff
+- If cancelled **after** cutoff: order is cancelled but vouchers are NOT restored (warning returned)
 
 Non-cancellable statuses:
+- REJECTED
 - PICKED_UP
 - OUT_FOR_DELIVERY
 - DELIVERED
@@ -664,6 +680,42 @@ Non-cancellable statuses:
 
 ## Computed Fields in Response
 
-- statusDisplay: Human-readable status text
+- statusDisplay: Human-readable status text (e.g., "Order Placed", "Being Prepared", "On the way", "Delivered")
 - canCancel: Whether order can be cancelled by customer
 - canRate: Whether order can be rated (only DELIVERED orders that haven't been rated)
+
+---
+
+## Status Display Mapping
+
+| Status | Display Text |
+|--------|--------------|
+| PLACED | Order Placed |
+| ACCEPTED | Accepted |
+| REJECTED | Rejected |
+| PREPARING | Being Prepared |
+| READY | Ready for Pickup |
+| PICKED_UP | Picked Up |
+| OUT_FOR_DELIVERY | On the way |
+| DELIVERED | Delivered |
+| CANCELLED | Cancelled |
+| FAILED | Failed |
+
+---
+
+## Developer Notes
+
+### Configurable Settings
+
+The following values are configurable via admin API and stored in SystemConfig:
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| Cancellation Window | 10 minutes | Time window after placing order during which cancellation is allowed |
+| LUNCH Cutoff | 11:00 AM IST | Voucher usage cutoff for lunch orders |
+| DINNER Cutoff | 9:00 PM IST | Voucher usage cutoff for dinner orders |
+
+### Contact Availability
+
+- `canContactDriver`: Only `true` when order status is `OUT_FOR_DELIVERY`
+- `canContactKitchen`: Only `true` when order status is `PLACED`, `ACCEPTED`, or `PREPARING`

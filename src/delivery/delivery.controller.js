@@ -5,6 +5,8 @@ import Kitchen from "../../schema/kitchen.schema.js";
 import Zone from "../../schema/zone.schema.js";
 import { sendResponse } from "../../utils/response.utils.js";
 import { safeAuditCreate } from "../../utils/audit.utils.js";
+import { checkCutoffTime, getCutoffTimes } from "../../services/config.service.js";
+
 
 /**
  * 
@@ -337,20 +339,25 @@ export async function dispatchBatches(req, res) {
       return sendResponse(res, 404, false, "Kitchen not found");
     }
 
-    // FR-DLV-9: Verify meal window has ended before allowing dispatch
-    // Use kitchen's operating hours from database instead of hardcoded values
-    const windowEndTime = getWindowEndTime(mealWindow, kitchen);
-    if (now < windowEndTime && !forceDispatch) {
-      const remainingMinutes = Math.ceil((windowEndTime - now) / (1000 * 60));
+    // FR-DLV-9: Verify order cutoff time has passed before allowing dispatch
+    // Use checkCutoffTime which returns the order cutoff time (e.g., 11:00 AM for LUNCH)
+    // NOT the delivery window end time (e.g., 7:30 PM)
+    const cutoffInfo = checkCutoffTime(mealWindow);
+
+    if (!cutoffInfo.isPastCutoff && !forceDispatch) {
+      // Calculate remaining time until cutoff
+      const cutoffTimeStr = cutoffInfo.cutoffTime;
       return sendResponse(
         res,
         400,
         false,
-        `Cannot dispatch ${mealWindow} batches yet. Meal window ends in ${remainingMinutes} minute(s). Use forceDispatch=true to override (Admin only).`
+        `Cannot dispatch ${mealWindow} batches yet. Order cutoff is at ${cutoffTimeStr}. Current time: ${cutoffInfo.currentTime}. Use forceDispatch=true to override (Admin only).`
       );
     }
 
     // Find batches ready for dispatch
+    // Note: We already validated that cutoff time has passed above
+    // No need to filter by windowEndTime (which is delivery end time, not cutoff)
     const batchQuery = {
       status: "COLLECTING",
       mealWindow,
@@ -358,10 +365,6 @@ export async function dispatchBatches(req, res) {
       orderIds: { $ne: [] },
     };
 
-    // Only apply windowEndTime filter if NOT forcing dispatch
-    if (!forceDispatch) {
-      batchQuery.windowEndTime = { $lte: now };
-    }
 
     const batches = await DeliveryBatch.find(batchQuery);
 

@@ -10,6 +10,10 @@ import {
   adminCancelSubscriptionSchema,
   queryPlansSchema,
   querySubscriptionsSchema,
+  triggerAutoOrdersSchema,
+  updateAutoOrderSettingsSchema,
+  pauseSubscriptionSchema,
+  skipMealSchema,
 } from "./subscription.validation.js";
 import Joi from "joi";
 

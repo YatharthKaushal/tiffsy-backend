@@ -116,6 +116,50 @@ export const querySubscriptionsSchema = Joi.object({
   limit: Joi.number().integer().min(1).max(100).default(20),
 });
 
+/**
+ * Trigger auto orders (for cron/scheduler)
+ */
+export const triggerAutoOrdersSchema = Joi.object({
+  // Empty schema - validates that body exists but doesn't require specific fields
+  // Auth is handled by CRON_SECRET header validation in the controller
+}).unknown(true);
+
+/**
+ * Update auto-order settings
+ */
+export const updateAutoOrderSettingsSchema = Joi.object({
+  autoOrderEnabled: Joi.boolean(),
+  preferredKitchenId: Joi.string().hex().length(24).allow(null),
+  preferredMealWindows: Joi.array()
+    .items(Joi.string().valid("LUNCH", "DINNER"))
+    .min(1),
+  deliveryAddressId: Joi.string().hex().length(24).allow(null),
+}).min(1);
+
+/**
+ * Pause subscription
+ */
+export const pauseSubscriptionSchema = Joi.object({
+  pauseReason: Joi.string().max(500).trim().allow("", null),
+  pauseUntil: Joi.date().greater("now").allow(null),
+});
+
+/**
+ * Skip meal
+ */
+export const skipMealSchema = Joi.object({
+  mealDate: Joi.date().required().messages({
+    "any.required": "Meal date is required",
+  }),
+  mealWindow: Joi.string()
+    .valid("LUNCH", "DINNER")
+    .required()
+    .messages({
+      "any.required": "Meal window is required",
+    }),
+  skipReason: Joi.string().max(500).trim().allow("", null),
+});
+
 export default {
   createPlanSchema,
   updatePlanSchema,
@@ -124,4 +168,8 @@ export default {
   adminCancelSubscriptionSchema,
   queryPlansSchema,
   querySubscriptionsSchema,
+  triggerAutoOrdersSchema,
+  updateAutoOrderSettingsSchema,
+  pauseSubscriptionSchema,
+  skipMealSchema,
 };

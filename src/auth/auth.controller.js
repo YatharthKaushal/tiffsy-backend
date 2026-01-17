@@ -17,7 +17,7 @@ import { sendResponse } from "../../utils/response.utils.js";
  * @returns {Object} Token and expiry info
  */
 const generateJwtToken = (user) => {
-  const expiresIn = 24 * 60 * 60; // 24 hours in seconds
+  const expiresIn = 15 * 24 * 60 * 60; // 15 days in seconds
   const token = jwt.sign(
     {
       userId: user._id,

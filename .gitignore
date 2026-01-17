@@ -3,8 +3,6 @@ node_modules
 node_module
 docs
 docs/api
-.md
-*.md
 .env
 secrets
 serviceAccountKey.json

@@ -150,6 +150,162 @@ export const registerDriverSchema = Joi.object({
   }),
 });
 
+/**
+ * Operating hours schema (for kitchen registration)
+ */
+const operatingHoursSchema = Joi.object({
+  lunch: Joi.object({
+    startTime: Joi.string()
+      .pattern(/^([01]\d|2[0-3]):([0-5]\d)$/)
+      .required()
+      .messages({
+        "any.required": "Lunch start time is required",
+        "string.pattern.base": "Lunch start time must be in HH:mm format",
+      }),
+    endTime: Joi.string()
+      .pattern(/^([01]\d|2[0-3]):([0-5]\d)$/)
+      .required()
+      .messages({
+        "any.required": "Lunch end time is required",
+        "string.pattern.base": "Lunch end time must be in HH:mm format",
+      }),
+  }).required(),
+  dinner: Joi.object({
+    startTime: Joi.string()
+      .pattern(/^([01]\d|2[0-3]):([0-5]\d)$/)
+      .required()
+      .messages({
+        "any.required": "Dinner start time is required",
+        "string.pattern.base": "Dinner start time must be in HH:mm format",
+      }),
+    endTime: Joi.string()
+      .pattern(/^([01]\d|2[0-3]):([0-5]\d)$/)
+      .required()
+      .messages({
+        "any.required": "Dinner end time is required",
+        "string.pattern.base": "Dinner end time must be in HH:mm format",
+      }),
+  }).required(),
+  onDemand: Joi.object({
+    startTime: Joi.string()
+      .pattern(/^([01]\d|2[0-3]):([0-5]\d)$/)
+      .optional(),
+    endTime: Joi.string()
+      .pattern(/^([01]\d|2[0-3]):([0-5]\d)$/)
+      .optional(),
+    isAlwaysOpen: Joi.boolean().default(false),
+  }).optional(),
+});
+
+/**
+ * Address schema (for kitchen registration)
+ */
+const addressSchema = Joi.object({
+  addressLine1: Joi.string().max(200).trim().required().messages({
+    "any.required": "Address line 1 is required",
+    "string.max": "Address line 1 cannot exceed 200 characters",
+  }),
+  addressLine2: Joi.string().max(200).trim().allow("", null),
+  locality: Joi.string().max(100).trim().required().messages({
+    "any.required": "Locality is required",
+  }),
+  city: Joi.string().max(100).trim().required().messages({
+    "any.required": "City is required",
+  }),
+  state: Joi.string().max(100).trim().allow("", null),
+  pincode: Joi.string()
+    .length(6)
+    .pattern(/^[0-9]+$/)
+    .required()
+    .messages({
+      "any.required": "Pincode is required",
+      "string.length": "Pincode must be 6 digits",
+      "string.pattern.base": "Pincode must contain only numbers",
+    }),
+  coordinates: Joi.object({
+    latitude: Joi.number().min(-90).max(90).required(),
+    longitude: Joi.number().min(-180).max(180).required(),
+  }).optional(),
+});
+
+/**
+ * Register kitchen after Firebase auth
+ * Kitchen self-registration - requires admin approval
+ */
+export const registerKitchenSchema = Joi.object({
+  name: Joi.string().min(2).max(100).trim().required().messages({
+    "any.required": "Kitchen name is required",
+    "string.empty": "Kitchen name is required",
+    "string.min": "Kitchen name must be at least 2 characters",
+    "string.max": "Kitchen name cannot exceed 100 characters",
+  }),
+  cuisineTypes: Joi.array()
+    .items(Joi.string().max(50).trim())
+    .min(1)
+    .required()
+    .messages({
+      "any.required": "At least one cuisine type is required",
+      "array.min": "At least one cuisine type is required",
+    }),
+  address: addressSchema.required(),
+  zonesServed: Joi.array()
+    .items(Joi.string().hex().length(24))
+    .min(1)
+    .required()
+    .messages({
+      "any.required": "At least one zone is required",
+      "array.min": "At least one zone is required",
+      "string.hex": "Invalid zone ID format",
+      "string.length": "Invalid zone ID length",
+    }),
+  operatingHours: operatingHoursSchema.required(),
+  contactPhone: Joi.string()
+    .pattern(/^[6-9]\d{9}$/)
+    .required()
+    .messages({
+      "any.required": "Contact phone is required",
+      "string.pattern.base":
+        "Phone must be 10 digits starting with 6-9",
+    }),
+  contactEmail: Joi.string().email().required().messages({
+    "any.required": "Contact email is required",
+    "string.email": "Invalid email format",
+  }),
+  ownerName: Joi.string().min(2).max(100).trim().required().messages({
+    "any.required": "Owner name is required",
+    "string.min": "Owner name must be at least 2 characters",
+  }),
+  logo: Joi.string().uri().required().messages({
+    "any.required": "Kitchen logo is required",
+    "string.uri": "Logo must be a valid URL",
+  }),
+  coverImage: Joi.string().uri().allow("", null),
+  staffName: Joi.string().min(2).max(100).trim().required().messages({
+    "any.required": "Staff name is required",
+    "string.min": "Staff name must be at least 2 characters",
+  }),
+  staffEmail: Joi.string().email().allow("", null),
+});
+
+/**
+ * Resubmit kitchen registration after rejection
+ * Same as registerKitchenSchema but all fields are optional
+ */
+export const resubmitKitchenSchema = Joi.object({
+  name: Joi.string().min(2).max(100).trim(),
+  cuisineTypes: Joi.array().items(Joi.string().max(50).trim()).min(1),
+  address: addressSchema,
+  zonesServed: Joi.array()
+    .items(Joi.string().hex().length(24))
+    .min(1),
+  operatingHours: operatingHoursSchema,
+  contactPhone: Joi.string().pattern(/^[6-9]\d{9}$/),
+  contactEmail: Joi.string().email(),
+  ownerName: Joi.string().min(2).max(100).trim(),
+  logo: Joi.string().uri(),
+  coverImage: Joi.string().uri().allow("", null),
+});
+
 export default {
   syncUserSchema,
   registerUserSchema,
@@ -158,4 +314,6 @@ export default {
   changePasswordSchema,
   fcmTokenSchema,
   registerDriverSchema,
+  registerKitchenSchema,
+  resubmitKitchenSchema,
 };

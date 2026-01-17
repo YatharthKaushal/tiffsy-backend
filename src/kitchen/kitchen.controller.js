@@ -1,8 +1,10 @@
+import mongoose from "mongoose";
 import Kitchen from "../../schema/kitchen.schema.js";
 import Zone from "../../schema/zone.schema.js";
 import User from "../../schema/user.schema.js";
 import Order from "../../schema/order.schema.js";
 import MenuItem from "../../schema/menuItem.schema.js";
+import DeliveryBatch from "../../schema/deliveryBatch.schema.js";
 import { sendResponse } from "../../utils/response.utils.js";
 import { safeAuditLog } from "../../utils/audit.utils.js";
 
@@ -921,6 +923,409 @@ export const updateMyKitchenImages = async (req, res) => {
   }
 };
 
+/**
+ * Get kitchen dashboard with aggregated stats
+ * @route GET /api/kitchens/dashboard
+ * @access Kitchen Staff + Admin
+ */
+export const getKitchenDashboard = async (req, res) => {
+  try {
+    // Determine kitchen ID based on role
+    const kitchenId =
+      req.user.role === "KITCHEN_STAFF"
+        ? req.user.kitchenId
+        : req.query.kitchenId;
+
+    if (!kitchenId) {
+      return sendResponse(res, 400, "Kitchen ID is required");
+    }
+
+    // Date range (default: today)
+    const date = req.query.date ? new Date(req.query.date) : new Date();
+    const startOfDay = new Date(date);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(date);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    // Fetch kitchen details
+    const kitchen = await Kitchen.findById(kitchenId)
+      .populate("zonesServed", "name code city")
+      .lean();
+
+    if (!kitchen) {
+      return sendResponse(res, 404, "Kitchen not found");
+    }
+
+    // Access control for kitchen staff
+    if (
+      req.user.role === "KITCHEN_STAFF" &&
+      req.user.kitchenId?.toString() !== kitchenId
+    ) {
+      return sendResponse(res, 403, "Access denied to this kitchen");
+    }
+
+    // Parallel aggregations for performance
+    const [todayOrderStats, batchStats, menuStats, recentOrders] =
+      await Promise.all([
+        // Today's order statistics
+        Order.aggregate([
+          {
+            $match: {
+              kitchenId: new mongoose.Types.ObjectId(kitchenId),
+              placedAt: { $gte: startOfDay, $lte: endOfDay },
+            },
+          },
+          {
+            $facet: {
+              statusCounts: [{ $group: { _id: "$status", count: { $sum: 1 } } }],
+              mealWindowStats: [
+                {
+                  $group: {
+                    _id: "$mealWindow",
+                    count: { $sum: 1 },
+                    revenue: { $sum: "$grandTotal" },
+                  },
+                },
+              ],
+              totals: [
+                {
+                  $group: {
+                    _id: null,
+                    count: { $sum: 1 },
+                    revenue: { $sum: "$grandTotal" },
+                  },
+                },
+              ],
+            },
+          },
+        ]),
+
+        // Today's batch statistics
+        DeliveryBatch.aggregate([
+          {
+            $match: {
+              kitchenId: new mongoose.Types.ObjectId(kitchenId),
+              batchDate: { $gte: startOfDay, $lte: endOfDay },
+            },
+          },
+          {
+            $group: {
+              _id: "$status",
+              count: { $sum: 1 },
+            },
+          },
+        ]),
+
+        // Menu statistics
+        MenuItem.aggregate([
+          {
+            $match: {
+              kitchenId: new mongoose.Types.ObjectId(kitchenId),
+            },
+          },
+          {
+            $facet: {
+              totals: [
+                {
+                  $group: {
+                    _id: null,
+                    total: { $sum: 1 },
+                    active: {
+                      $sum: {
+                        $cond: [
+                          {
+                            $and: [
+                              { $eq: ["$status", "ACTIVE"] },
+                              { $eq: ["$isAvailable", true] },
+                            ],
+                          },
+                          1,
+                          0,
+                        ],
+                      },
+                    },
+                  },
+                },
+              ],
+            },
+          },
+        ]),
+
+        // Recent orders (last 10)
+        Order.find({
+          kitchenId,
+          placedAt: { $gte: startOfDay, $lte: endOfDay },
+        })
+          .sort({ placedAt: -1 })
+          .limit(10)
+          .select(
+            "orderNumber status placedAt grandTotal mealWindow menuType"
+          )
+          .lean(),
+      ]);
+
+    // Format response
+    const statusMap = {};
+    todayOrderStats[0]?.statusCounts?.forEach((s) => {
+      statusMap[s._id] = s.count;
+    });
+
+    const mealWindowMap = { LUNCH: {}, DINNER: {} };
+    todayOrderStats[0]?.mealWindowStats?.forEach((m) => {
+      if (m._id) {
+        mealWindowMap[m._id] = {
+          count: m.count,
+          revenue: m.revenue,
+        };
+      }
+    });
+
+    const totals = todayOrderStats[0]?.totals?.[0] || { count: 0, revenue: 0 };
+
+    const batchStatusMap = {};
+    batchStats.forEach((b) => {
+      batchStatusMap[b._id] = b.count;
+    });
+
+    const menuTotals = menuStats[0]?.totals?.[0] || { total: 0, active: 0 };
+
+    return sendResponse(res, 200, "Kitchen dashboard data retrieved", {
+      kitchen: {
+        _id: kitchen._id,
+        name: kitchen.name,
+        code: kitchen.code,
+        type: kitchen.type,
+        status: kitchen.status,
+        logo: kitchen.logo,
+        coverImage: kitchen.coverImage,
+        isAcceptingOrders: kitchen.isAcceptingOrders,
+        operatingHours: kitchen.operatingHours,
+        zonesServed: kitchen.zonesServed,
+      },
+      todayStats: {
+        ordersCount: totals.count,
+        ordersRevenue: Math.round(totals.revenue * 100) / 100,
+        pendingOrders: statusMap.PLACED || 0,
+        acceptedOrders: statusMap.ACCEPTED || 0,
+        preparingOrders: statusMap.PREPARING || 0,
+        readyOrders: statusMap.READY || 0,
+        completedOrders: statusMap.DELIVERED || 0,
+        cancelledOrders: (statusMap.CANCELLED || 0) + (statusMap.REJECTED || 0),
+        lunchOrders: mealWindowMap.LUNCH?.count || 0,
+        lunchRevenue: Math.round((mealWindowMap.LUNCH?.revenue || 0) * 100) / 100,
+        dinnerOrders: mealWindowMap.DINNER?.count || 0,
+        dinnerRevenue: Math.round((mealWindowMap.DINNER?.revenue || 0) * 100) / 100,
+      },
+      batchStats: {
+        collectingBatches: batchStatusMap.COLLECTING || 0,
+        readyBatches: batchStatusMap.READY_FOR_DISPATCH || 0,
+        dispatchedBatches: batchStatusMap.DISPATCHED || 0,
+        inProgressBatches: batchStatusMap.IN_PROGRESS || 0,
+        completedBatches:
+          (batchStatusMap.COMPLETED || 0) +
+          (batchStatusMap.PARTIAL_COMPLETE || 0),
+      },
+      menuStats: {
+        totalMenuItems: menuTotals.total,
+        activeMenuItems: menuTotals.active,
+        unavailableItems: menuTotals.total - menuTotals.active,
+      },
+      recentActivity: recentOrders,
+    });
+  } catch (error) {
+    console.log("> Get kitchen dashboard error:", error);
+    return sendResponse(res, 500, "Failed to retrieve dashboard data");
+  }
+};
+
+/**
+ * Get kitchen analytics with historical performance
+ * @route GET /api/kitchens/analytics
+ * @access Kitchen Staff + Admin
+ */
+export const getKitchenAnalytics = async (req, res) => {
+  try {
+    // Determine kitchen ID based on role
+    const kitchenId =
+      req.user.role === "KITCHEN_STAFF"
+        ? req.user.kitchenId
+        : req.query.kitchenId;
+
+    if (!kitchenId) {
+      return sendResponse(res, 400, "Kitchen ID is required");
+    }
+
+    // Access control for kitchen staff
+    if (
+      req.user.role === "KITCHEN_STAFF" &&
+      req.user.kitchenId?.toString() !== kitchenId
+    ) {
+      return sendResponse(res, 403, "Access denied to this kitchen");
+    }
+
+    const { dateFrom, dateTo, groupBy = "day" } = req.query;
+
+    // Default: last 7 days
+    const endDate = dateTo ? new Date(dateTo) : new Date();
+    endDate.setHours(23, 59, 59, 999);
+    const startDate = dateFrom
+      ? new Date(dateFrom)
+      : new Date(endDate.getTime() - 7 * 24 * 60 * 60 * 1000);
+    startDate.setHours(0, 0, 0, 0);
+
+    // Limit to 90 days max
+    const daysDiff = (endDate - startDate) / (24 * 60 * 60 * 1000);
+    if (daysDiff > 90) {
+      return sendResponse(res, 400, "Maximum date range is 90 days");
+    }
+
+    // Group by format
+    const groupFormats = {
+      day: { $dateToString: { format: "%Y-%m-%d", date: "$placedAt" } },
+      week: { $dateToString: { format: "%Y-W%U", date: "$placedAt" } },
+      month: { $dateToString: { format: "%Y-%m", date: "$placedAt" } },
+    };
+
+    const groupFormat = groupFormats[groupBy] || groupFormats.day;
+
+    // Aggregate analytics
+    const [timeline, summary, topItems] = await Promise.all([
+      // Timeline data
+      Order.aggregate([
+        {
+          $match: {
+            kitchenId: new mongoose.Types.ObjectId(kitchenId),
+            placedAt: { $gte: startDate, $lte: endDate },
+          },
+        },
+        {
+          $group: {
+            _id: groupFormat,
+            orders: { $sum: 1 },
+            revenue: { $sum: "$grandTotal" },
+            cancelled: {
+              $sum: {
+                $cond: [
+                  { $in: ["$status", ["CANCELLED", "REJECTED"]] },
+                  1,
+                  0,
+                ],
+              },
+            },
+            completed: {
+              $sum: {
+                $cond: [{ $eq: ["$status", "DELIVERED"] }, 1, 0],
+              },
+            },
+          },
+        },
+        { $sort: { _id: 1 } },
+      ]),
+
+      // Summary statistics
+      Order.aggregate([
+        {
+          $match: {
+            kitchenId: new mongoose.Types.ObjectId(kitchenId),
+            placedAt: { $gte: startDate, $lte: endDate },
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            totalOrders: { $sum: 1 },
+            totalRevenue: { $sum: "$grandTotal" },
+            cancelled: {
+              $sum: {
+                $cond: [
+                  { $in: ["$status", ["CANCELLED", "REJECTED"]] },
+                  1,
+                  0,
+                ],
+              },
+            },
+            completed: {
+              $sum: {
+                $cond: [{ $eq: ["$status", "DELIVERED"] }, 1, 0],
+              },
+            },
+          },
+        },
+      ]),
+
+      // Top menu items
+      Order.aggregate([
+        {
+          $match: {
+            kitchenId: new mongoose.Types.ObjectId(kitchenId),
+            placedAt: { $gte: startDate, $lte: endDate },
+            status: "DELIVERED",
+          },
+        },
+        { $unwind: "$items" },
+        {
+          $group: {
+            _id: "$items.menuItemId",
+            name: { $first: "$items.name" },
+            ordersCount: { $sum: "$items.quantity" },
+            revenue: { $sum: "$items.totalPrice" },
+          },
+        },
+        { $sort: { ordersCount: -1 } },
+        { $limit: 10 },
+      ]),
+    ]);
+
+    const summaryData = summary[0] || {
+      totalOrders: 0,
+      totalRevenue: 0,
+      cancelled: 0,
+      completed: 0,
+    };
+
+    const avgOrderValue =
+      summaryData.totalOrders > 0
+        ? summaryData.totalRevenue / summaryData.totalOrders
+        : 0;
+
+    const completionRate =
+      summaryData.totalOrders > 0
+        ? (summaryData.completed / summaryData.totalOrders) * 100
+        : 0;
+
+    const cancelRate =
+      summaryData.totalOrders > 0
+        ? (summaryData.cancelled / summaryData.totalOrders) * 100
+        : 0;
+
+    return sendResponse(res, 200, "Kitchen analytics retrieved", {
+      period: {
+        from: startDate.toISOString().split("T")[0],
+        to: endDate.toISOString().split("T")[0],
+        groupBy,
+      },
+      summary: {
+        totalOrders: summaryData.totalOrders,
+        totalRevenue: Math.round(summaryData.totalRevenue * 100) / 100,
+        averageOrderValue: Math.round(avgOrderValue * 100) / 100,
+        completionRate: Math.round(completionRate * 10) / 10,
+        cancelRate: Math.round(cancelRate * 10) / 10,
+      },
+      timeline: timeline.map((t) => ({
+        period: t._id,
+        orders: t.orders,
+        revenue: Math.round(t.revenue * 100) / 100,
+        completed: t.completed,
+        cancelled: t.cancelled,
+      })),
+      topItems,
+    });
+  } catch (error) {
+    console.log("> Get kitchen analytics error:", error);
+    return sendResponse(res, 500, "Failed to retrieve analytics");
+  }
+};
+
 export default {
   createKitchen,
   getKitchens,
@@ -938,4 +1343,6 @@ export default {
   getKitchenPublicDetails,
   getMyKitchen,
   updateMyKitchenImages,
+  getKitchenDashboard,
+  getKitchenAnalytics,
 };

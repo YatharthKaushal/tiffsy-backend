@@ -1,0 +1,170 @@
+====================================================================================
+FRONTEND IMPLEMENTATION PROMPT - Kitchen Approval & Dashboard System
+====================================================================================
+
+Hi! I need you to implement the Kitchen Approval and Dashboard system in our React Native app.
+
+The backend is FULLY IMPLEMENTED and ready. I'm attaching the complete integration guide that contains:
+- All API endpoints with request/response examples
+- Complete UI/UX specifications
+- Code examples for every screen and component
+- Service layer implementation
+- Navigation setup
+- Testing scenarios
+
+READ THE ATTACHED DOCUMENT: FRONTEND_INTEGRATION_GUIDE.md
+
+====================================================================================
+KEY POINTS TO UNDERSTAND:
+====================================================================================
+
+1. SAME APP, DIFFERENT DASHBOARDS
+   - Admin users (role: ADMIN) see Admin Dashboard with Kitchen Approvals sidebar item
+   - Kitchen users (role: KITCHEN_STAFF) see Kitchen Dashboard with 5 tabs
+   - The app routes based on user.role after login
+
+2. WHAT YOU NEED TO IMPLEMENT:
+
+   FOR ADMIN:
+   ✅ Add "Kitchen Approvals" to admin sidebar
+   ✅ Kitchen Approvals Screen (list of pending kitchens)
+   ✅ Approve/Reject functionality with confirmation dialogs
+   ✅ Kitchen Details Modal (full info view)
+   ✅ Reject Modal (with reason input, 10-500 chars validation)
+
+   FOR KITCHEN STAFF:
+   ✅ Pending Approval Screen (show while awaiting review)
+   ✅ Rejection Screen (show reason + resubmit button)
+   ✅ Edit & Resubmit Form (update details after rejection)
+   ✅ Kitchen Dashboard with 5 tabs:
+      - Tab 1: Dashboard Overview (stats, recent orders)
+      - Tab 2: Orders (existing, no changes needed)
+      - Tab 3: Batches (existing, no changes needed)
+      - Tab 4: Menu Management (add stats endpoint)
+      - Tab 5: Profile (existing, no changes needed)
+
+3. ROUTING LOGIC (CRITICAL):
+
+   After user logs in via Firebase OTP, call POST /api/auth/sync:
+
+   ```typescript
+   const response = await api.post('/auth/sync');
+   const { user, token, kitchen } = response.data.data;
+
+   // Save token
+   await AsyncStorage.setItem('authToken', token);
+
+   // Route based on role
+   if (user.role === 'ADMIN') {
+     navigation.replace('AdminDashboard');
+   }
+
+   if (user.role === 'KITCHEN_STAFF') {
+     // Check kitchen status
+     if (kitchen.status === 'PENDING_APPROVAL') {
+       if (kitchen.rejectionReason) {
+         // Show rejection with resubmit option
+         navigation.replace('KitchenRejection', { kitchen });
+       } else {
+         // Show pending approval screen
+         navigation.replace('KitchenPending', { kitchen });
+       }
+     } else if (kitchen.status === 'ACTIVE') {
+       // Show full kitchen dashboard
+       navigation.replace('KitchenDashboard');
+     }
+   }
+   ```
+
+4. API ENDPOINTS (All Ready on Backend):
+
+   ADMIN ENDPOINTS:
+   - GET /api/admin/kitchens/pending?page=1&limit=20
+   - PATCH /api/admin/kitchens/:id/approve
+   - PATCH /api/admin/kitchens/:id/reject (body: { reason: string })
+
+   KITCHEN ENDPOINTS:
+   - GET /api/auth/my-kitchen-status
+   - PATCH /api/auth/resubmit-kitchen (body: { ...updates })
+   - GET /api/kitchens/dashboard?date=YYYY-MM-DD
+   - GET /api/menu/my-kitchen/stats
+   - GET /api/kitchens/analytics?dateFrom=...&dateTo=...&groupBy=day
+
+5. VALIDATION RULES:
+   - Rejection reason: 10-500 characters (required)
+   - All API calls need Authorization: Bearer <jwt_token>
+   - Handle 401 errors (logout user)
+
+====================================================================================
+IMPLEMENTATION STEPS:
+====================================================================================
+
+STEP 1: Read the FRONTEND_INTEGRATION_GUIDE.md completely
+
+STEP 2: Create API services:
+   - services/kitchenApproval.service.ts
+   - services/kitchenDashboard.service.ts
+
+STEP 3: Implement Admin Screens (in order):
+   - KitchenApprovalsScreen (main list)
+   - KitchenApprovalCard component
+   - KitchenDetailsModal
+   - RejectKitchenModal
+
+STEP 4: Implement Kitchen Screens (in order):
+   - KitchenPendingScreen
+   - KitchenRejectionScreen
+   - EditKitchenRegistrationScreen
+   - KitchenDashboardScreen with 5 tabs
+
+STEP 5: Update Navigation:
+   - Add routes to AdminNavigator
+   - Add routes to KitchenNavigator
+   - Update login routing logic
+
+STEP 6: Test thoroughly:
+   - Admin can view/approve/reject kitchens
+   - Kitchen sees correct screen based on status
+   - Resubmit flow works end-to-end
+   - Dashboard loads all stats correctly
+
+====================================================================================
+QUESTIONS TO ASK ME:
+====================================================================================
+
+Before you start, ask me:
+
+1. Do you already have an AdminNavigator and KitchenNavigator setup?
+2. Where is the admin sidebar component located?
+3. Do you have existing order and batch management screens I should reuse?
+4. What state management library are you using (Redux, Context, etc.)?
+5. Do you have any existing design system or component library?
+6. What icon library are you using (react-native-vector-icons, expo-icons)?
+
+====================================================================================
+IMPORTANT NOTES:
+====================================================================================
+
+✅ Backend is 100% complete and tested
+✅ All API endpoints are working
+✅ Server is running at: https://tiffsy-backend.onrender.com/api
+✅ The integration guide has COMPLETE code examples for every component
+✅ Copy and adapt the code examples provided
+✅ Focus on UI/UX polish and error handling
+✅ Use the exact API response structures shown in the guide
+
+====================================================================================
+START IMPLEMENTATION:
+====================================================================================
+
+After reading the guide and asking clarification questions, start implementing in this order:
+
+1. API Services layer
+2. Admin Kitchen Approvals (simplest)
+3. Kitchen Pending/Rejection screens
+4. Kitchen Dashboard tabs
+5. Integration testing
+
+Good luck! The guide has everything you need. Let me know if you have questions!
+
+====================================================================================

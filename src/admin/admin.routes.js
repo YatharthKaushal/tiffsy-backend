@@ -221,4 +221,43 @@ router.patch(
   adminController.rejectDriver
 );
 
+/**
+ * KITCHEN APPROVAL MANAGEMENT
+ */
+
+// Get pending kitchen registrations
+router.get(
+  "/kitchens/pending",
+  adminAuthMiddleware,
+  adminMiddleware,
+  adminController.getPendingKitchens
+);
+
+// Approve kitchen registration
+router.patch(
+  "/kitchens/:id/approve",
+  adminAuthMiddleware,
+  adminMiddleware,
+  validateParams(idParamSchema),
+  adminController.approveKitchen
+);
+
+// Reject kitchen registration (with reason)
+const rejectKitchenSchema = Joi.object({
+  reason: Joi.string().min(10).max(500).trim().required().messages({
+    "any.required": "Rejection reason is required",
+    "string.min": "Rejection reason must be at least 10 characters",
+    "string.max": "Rejection reason cannot exceed 500 characters",
+  }),
+});
+
+router.patch(
+  "/kitchens/:id/reject",
+  adminAuthMiddleware,
+  adminMiddleware,
+  validateParams(idParamSchema),
+  validateBody(rejectKitchenSchema),
+  adminController.rejectKitchen
+);
+
 export default router;

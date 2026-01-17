@@ -1,8 +1,12 @@
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
+import mongoose from "mongoose";
 import User from "../../schema/user.schema.js";
 import Kitchen from "../../schema/kitchen.schema.js";
+import Zone from "../../schema/zone.schema.js";
 import { sendResponse } from "../../utils/response.utils.js";
+import { normalizePhone } from "../../utils/phone.utils.js";
+import { safeAuditCreate } from "../../utils/audit.utils.js";
 
 /**
  * Auth Controller
@@ -111,6 +115,43 @@ export const syncUser = async (req, res) => {
         rejectionReason: user.approvalDetails?.rejectionReason,
         message: "Your driver registration was rejected.",
       });
+    }
+
+    // Check if kitchen staff has pending kitchen approval
+    if (user.role === "KITCHEN_STAFF" && user.kitchenId) {
+      const kitchen = await Kitchen.findById(user.kitchenId);
+
+      if (kitchen && kitchen.status === "PENDING_APPROVAL") {
+        // Existing user - update Firebase UID if not set
+        if (!user.firebaseUid && firebaseUid) {
+          user.firebaseUid = firebaseUid;
+        }
+        user.lastLoginAt = new Date();
+        await user.save();
+
+        const response = {
+          user: user.toJSON(),
+          kitchen: {
+            _id: kitchen._id,
+            name: kitchen.name,
+            code: kitchen.code,
+            status: kitchen.status,
+          },
+          isNewUser: false,
+          isProfileComplete: Boolean(user.name),
+          kitchenApprovalStatus: "PENDING",
+          message: "Your kitchen registration is pending admin approval.",
+        };
+
+        // Add rejection details if kitchen was rejected
+        if (kitchen.rejectionReason) {
+          response.kitchenApprovalStatus = "REJECTED";
+          response.rejectionReason = kitchen.rejectionReason;
+          response.message = "Your kitchen registration was rejected. Please resubmit with corrections.";
+        }
+
+        return sendResponse(res, 200, "Kitchen staff authenticated - kitchen pending", response);
+      }
     }
 
     // Existing user - update Firebase UID if not set
@@ -603,10 +644,370 @@ export const adminRefreshToken = async (req, res) => {
   }
 };
 
+/**
+ * Register new kitchen after Firebase OTP authentication
+ * Creates new PARTNER kitchen account - requires admin approval
+ *
+ * POST /api/auth/register-kitchen
+ */
+export const registerKitchen = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const {
+      name,
+      cuisineTypes,
+      address,
+      zonesServed,
+      operatingHours,
+      contactPhone,
+      contactEmail,
+      ownerName,
+      logo,
+      coverImage,
+      staffName,
+      staffEmail,
+    } = req.body;
+
+    const phone = req.phone;
+    const firebaseUid = req.firebaseUid;
+
+    console.log(`> Kitchen register attempt - phone: ${phone}, name: ${name}`);
+
+    // Validate phone is present
+    if (!phone) {
+      console.log("> Kitchen register error: Phone not found in request");
+      await session.abortTransaction();
+      return sendResponse(res, 400, "Phone number not found");
+    }
+
+    // Check if user already exists
+    const existingUser = await User.findOne({ phone }).session(session);
+    if (existingUser && existingUser.status !== "DELETED") {
+      await session.abortTransaction();
+      return sendResponse(res, 409, "User with this phone already exists");
+    }
+
+    // Validate zones exist and are active
+    const zones = await Zone.find({
+      _id: { $in: zonesServed },
+      status: "ACTIVE",
+    }).session(session);
+
+    if (zones.length !== zonesServed.length) {
+      await session.abortTransaction();
+      return sendResponse(
+        res,
+        400,
+        "One or more zones are invalid or inactive"
+      );
+    }
+
+    // Check for existing partner kitchens in the same zones
+    for (const zoneId of zonesServed) {
+      const existingPartner = await Kitchen.findOne({
+        zonesServed: zoneId,
+        type: "PARTNER",
+        status: { $in: ["ACTIVE", "PENDING_APPROVAL"] },
+      }).session(session);
+
+      if (existingPartner) {
+        await session.abortTransaction();
+        const zone = zones.find((z) => z._id.toString() === zoneId.toString());
+        return sendResponse(
+          res,
+          409,
+          `A partner kitchen already exists or is pending approval in zone: ${zone?.name || zoneId}`
+        );
+      }
+    }
+
+    // Generate unique kitchen code
+    const kitchenCode = await Kitchen.generateKitchenCode();
+
+    // Create kitchen with PENDING_APPROVAL status
+    const kitchen = new Kitchen({
+      name: name.trim(),
+      code: kitchenCode,
+      type: "PARTNER",
+      status: "PENDING_APPROVAL",
+      cuisineTypes: cuisineTypes || [],
+      address: {
+        addressLine1: address.addressLine1?.trim(),
+        addressLine2: address.addressLine2?.trim(),
+        locality: address.locality?.trim(),
+        city: address.city?.trim(),
+        state: address.state?.trim(),
+        pincode: address.pincode?.trim(),
+        coordinates: address.coordinates || undefined,
+      },
+      zonesServed,
+      operatingHours,
+      contactPhone: normalizePhone(contactPhone),
+      contactEmail: contactEmail?.toLowerCase().trim(),
+      ownerName: ownerName?.trim(),
+      ownerPhone: phone,
+      logo: logo?.trim(),
+      coverImage: coverImage?.trim(),
+      isAcceptingOrders: false, // Don't accept orders until approved
+    });
+
+    await kitchen.save({ session });
+
+    console.log(`> Kitchen created: ${kitchen.code} - ${kitchen.name}`);
+
+    // Create kitchen staff user
+    const staffUser = new User({
+      phone,
+      role: "KITCHEN_STAFF",
+      kitchenId: kitchen._id,
+      name: staffName.trim(),
+      email: staffEmail?.toLowerCase().trim() || undefined,
+      firebaseUid,
+      status: "ACTIVE", // User is active but kitchen is pending
+      lastLoginAt: new Date(),
+    });
+
+    await staffUser.save({ session });
+
+    console.log(`> Kitchen staff user created: ${phone}`);
+
+    // Create audit log
+    await safeAuditCreate(
+      null,
+      "KITCHEN_REGISTERED",
+      "Kitchen",
+      kitchen._id,
+      null,
+      { kitchenName: kitchen.name, kitchenCode: kitchen.code },
+      "Kitchen registered for approval"
+    );
+
+    await session.commitTransaction();
+
+    return sendResponse(res, 201, "Kitchen registration submitted for approval", {
+      kitchen: kitchen.toJSON(),
+      user: staffUser.toJSON(),
+      approvalStatus: "PENDING",
+      message:
+        "Your kitchen registration is pending admin approval. You will be notified once approved.",
+    });
+  } catch (error) {
+    await session.abortTransaction();
+    console.error("> Kitchen register error:", error.message);
+    console.error("> Kitchen register stack:", error.stack);
+    return sendResponse(res, 500, "Server error during kitchen registration");
+  } finally {
+    session.endSession();
+  }
+};
+
+/**
+ * Resubmit kitchen registration after rejection
+ * Allows kitchen staff to update details and resubmit for approval
+ *
+ * PATCH /api/auth/resubmit-kitchen
+ */
+export const resubmitKitchen = async (req, res) => {
+  try {
+    const user = req.user;
+
+    if (!user || user.role !== "KITCHEN_STAFF") {
+      return sendResponse(res, 403, "Only kitchen staff can resubmit");
+    }
+
+    if (!user.kitchenId) {
+      return sendResponse(res, 400, "No kitchen associated with this account");
+    }
+
+    const {
+      name,
+      cuisineTypes,
+      address,
+      zonesServed,
+      operatingHours,
+      contactPhone,
+      contactEmail,
+      ownerName,
+      logo,
+      coverImage,
+    } = req.body;
+
+    // Find the kitchen
+    const kitchen = await Kitchen.findById(user.kitchenId);
+
+    if (!kitchen) {
+      return sendResponse(res, 404, "Kitchen not found");
+    }
+
+    // Only allow resubmission if kitchen is in PENDING_APPROVAL state
+    if (kitchen.status !== "PENDING_APPROVAL") {
+      return sendResponse(
+        res,
+        400,
+        "Kitchen is not in pending approval state"
+      );
+    }
+
+    // Validate zones if provided
+    if (zonesServed && zonesServed.length > 0) {
+      const zones = await Zone.find({
+        _id: { $in: zonesServed },
+        status: "ACTIVE",
+      });
+
+      if (zones.length !== zonesServed.length) {
+        return sendResponse(
+          res,
+          400,
+          "One or more zones are invalid or inactive"
+        );
+      }
+
+      // Check for existing partner kitchens in the new zones
+      for (const zoneId of zonesServed) {
+        const existingPartner = await Kitchen.findOne({
+          _id: { $ne: kitchen._id }, // Exclude current kitchen
+          zonesServed: zoneId,
+          type: "PARTNER",
+          status: { $in: ["ACTIVE", "PENDING_APPROVAL"] },
+        });
+
+        if (existingPartner) {
+          const zone = zones.find((z) => z._id.toString() === zoneId.toString());
+          return sendResponse(
+            res,
+            409,
+            `A partner kitchen already exists or is pending approval in zone: ${zone?.name || zoneId}`
+          );
+        }
+      }
+
+      kitchen.zonesServed = zonesServed;
+    }
+
+    // Update kitchen details
+    if (name) kitchen.name = name.trim();
+    if (cuisineTypes) kitchen.cuisineTypes = cuisineTypes;
+    if (address) {
+      kitchen.address = {
+        addressLine1: address.addressLine1?.trim(),
+        addressLine2: address.addressLine2?.trim(),
+        locality: address.locality?.trim(),
+        city: address.city?.trim(),
+        state: address.state?.trim(),
+        pincode: address.pincode?.trim(),
+        coordinates: address.coordinates || kitchen.address.coordinates,
+      };
+    }
+    if (operatingHours) kitchen.operatingHours = operatingHours;
+    if (contactPhone) kitchen.contactPhone = normalizePhone(contactPhone);
+    if (contactEmail) kitchen.contactEmail = contactEmail.toLowerCase().trim();
+    if (ownerName) kitchen.ownerName = ownerName.trim();
+    if (logo) kitchen.logo = logo.trim();
+    if (coverImage) kitchen.coverImage = coverImage.trim();
+
+    // Clear rejection fields
+    kitchen.rejectionReason = undefined;
+    kitchen.rejectedBy = undefined;
+    kitchen.rejectedAt = undefined;
+
+    await kitchen.save();
+
+    console.log(`> Kitchen resubmitted: ${kitchen.code} - ${kitchen.name}`);
+
+    // Create audit log
+    await safeAuditCreate(
+      { _id: user._id },
+      "KITCHEN_RESUBMITTED",
+      "Kitchen",
+      kitchen._id,
+      null,
+      { kitchenName: kitchen.name, kitchenCode: kitchen.code },
+      "Kitchen resubmitted for approval after rejection"
+    );
+
+    return sendResponse(res, 200, "Kitchen resubmitted for approval", {
+      kitchen: kitchen.toJSON(),
+      message:
+        "Your kitchen has been resubmitted for approval. You will be notified once reviewed.",
+    });
+  } catch (error) {
+    console.error("> Kitchen resubmit error:", error.message);
+    console.error("> Kitchen resubmit stack:", error.stack);
+    return sendResponse(res, 500, "Server error during resubmission");
+  }
+};
+
+/**
+ * Get kitchen status for logged-in kitchen staff
+ * Returns approval status, rejection details if any
+ *
+ * GET /api/auth/my-kitchen-status
+ */
+export const getMyKitchenStatus = async (req, res) => {
+  try {
+    const user = req.user;
+
+    if (!user || user.role !== "KITCHEN_STAFF") {
+      return sendResponse(res, 403, "Only kitchen staff can access this");
+    }
+
+    if (!user.kitchenId) {
+      return sendResponse(res, 400, "No kitchen associated with this account");
+    }
+
+    const kitchen = await Kitchen.findById(user.kitchenId)
+      .populate("zonesServed", "name code city")
+      .populate("approvedBy", "name username")
+      .populate("rejectedBy", "name username");
+
+    if (!kitchen) {
+      return sendResponse(res, 404, "Kitchen not found");
+    }
+
+    const response = {
+      kitchenId: kitchen._id,
+      kitchenName: kitchen.name,
+      kitchenCode: kitchen.code,
+      status: kitchen.status,
+      isAcceptingOrders: kitchen.isAcceptingOrders,
+      createdAt: kitchen.createdAt,
+      updatedAt: kitchen.updatedAt,
+    };
+
+    // Add approval details if approved
+    if (kitchen.status === "ACTIVE" && kitchen.approvedBy) {
+      response.approvalDetails = {
+        approvedBy: kitchen.approvedBy,
+        approvedAt: kitchen.approvedAt,
+      };
+    }
+
+    // Add rejection details if rejected
+    if (kitchen.rejectionReason) {
+      response.rejectionDetails = {
+        reason: kitchen.rejectionReason,
+        rejectedBy: kitchen.rejectedBy,
+        rejectedAt: kitchen.rejectedAt,
+      };
+    }
+
+    return sendResponse(res, 200, "Kitchen status retrieved", response);
+  } catch (error) {
+    console.error("> Get kitchen status error:", error.message);
+    return sendResponse(res, 500, "Server error");
+  }
+};
+
 export default {
   syncUser,
   registerUser,
   registerDriver,
+  registerKitchen,
+  resubmitKitchen,
+  getMyKitchenStatus,
   completeProfile,
   getCurrentUser,
   updateFcmToken,

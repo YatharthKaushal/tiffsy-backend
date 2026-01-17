@@ -1116,6 +1116,169 @@ export async function updateGuidelines(req, res) {
   }
 }
 
+/**
+ * Get pending kitchen registrations
+ * @route GET /api/admin/kitchens/pending
+ * @access Admin
+ */
+export async function getPendingKitchens(req, res) {
+  try {
+    const { page = 1, limit = 20 } = req.query;
+    const skip = (page - 1) * limit;
+
+    const query = {
+      type: "PARTNER",
+      status: "PENDING_APPROVAL",
+    };
+
+    const [kitchens, total] = await Promise.all([
+      Kitchen.find(query)
+        .populate("zonesServed", "name code city pincode")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(parseInt(limit)),
+      Kitchen.countDocuments(query),
+    ]);
+
+    return sendResponse(res, 200, "Pending kitchens retrieved", {
+      kitchens,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        pages: Math.ceil(total / limit),
+      },
+    });
+  } catch (error) {
+    console.log("Get pending kitchens error:", error);
+    return sendResponse(res, 500, "Failed to retrieve pending kitchens");
+  }
+}
+
+/**
+ * Approve a kitchen registration
+ * @route PATCH /api/admin/kitchens/:id/approve
+ * @access Admin
+ */
+export async function approveKitchen(req, res) {
+  try {
+    const { id } = req.params;
+    const adminId = req.user._id;
+
+    const kitchen = await Kitchen.findById(id);
+    if (!kitchen) {
+      return sendResponse(res, 404, "Kitchen not found");
+    }
+
+    if (kitchen.type !== "PARTNER") {
+      return sendResponse(res, 400, "Only partner kitchens require approval");
+    }
+
+    if (kitchen.status === "ACTIVE") {
+      return sendResponse(res, 400, "Kitchen is already approved");
+    }
+
+    if (kitchen.status !== "PENDING_APPROVAL") {
+      return sendResponse(
+        res,
+        400,
+        "Kitchen is not in pending approval state"
+      );
+    }
+
+    // Update kitchen status
+    kitchen.status = "ACTIVE";
+    kitchen.isAcceptingOrders = true;
+    kitchen.approvedBy = adminId;
+    kitchen.approvedAt = new Date();
+
+    // Clear rejection fields if any
+    kitchen.rejectionReason = undefined;
+    kitchen.rejectedBy = undefined;
+    kitchen.rejectedAt = undefined;
+
+    await kitchen.save();
+
+    // Log audit
+    await safeAuditCreate(
+      { _id: adminId },
+      "APPROVE_KITCHEN",
+      "Kitchen",
+      kitchen._id,
+      null,
+      { kitchenName: kitchen.name, kitchenCode: kitchen.code },
+      "Kitchen approved by admin"
+    );
+
+    return sendResponse(res, 200, "Kitchen approved successfully", {
+      kitchen: kitchen.toJSON(),
+    });
+  } catch (error) {
+    console.log("Approve kitchen error:", error);
+    return sendResponse(res, 500, "Failed to approve kitchen");
+  }
+}
+
+/**
+ * Reject a kitchen registration
+ * @route PATCH /api/admin/kitchens/:id/reject
+ * @access Admin
+ */
+export async function rejectKitchen(req, res) {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+    const adminId = req.user._id;
+
+    if (!reason || reason.trim().length === 0) {
+      return sendResponse(res, 400, "Rejection reason is required");
+    }
+
+    const kitchen = await Kitchen.findById(id);
+    if (!kitchen) {
+      return sendResponse(res, 404, "Kitchen not found");
+    }
+
+    if (kitchen.type !== "PARTNER") {
+      return sendResponse(res, 400, "Only partner kitchens can be rejected");
+    }
+
+    if (kitchen.status !== "PENDING_APPROVAL") {
+      return sendResponse(
+        res,
+        400,
+        "Kitchen is not in pending approval state"
+      );
+    }
+
+    // Update rejection details
+    kitchen.rejectionReason = reason.trim();
+    kitchen.rejectedBy = adminId;
+    kitchen.rejectedAt = new Date();
+
+    // Kitchen remains in PENDING_APPROVAL state for resubmission
+    await kitchen.save();
+
+    // Log audit
+    await safeAuditCreate(
+      { _id: adminId },
+      "REJECT_KITCHEN",
+      "Kitchen",
+      kitchen._id,
+      null,
+      { kitchenName: kitchen.name, kitchenCode: kitchen.code, reason },
+      "Kitchen registration rejected by admin"
+    );
+
+    return sendResponse(res, 200, "Kitchen registration rejected", {
+      kitchen: kitchen.toJSON(),
+    });
+  } catch (error) {
+    console.log("Reject kitchen error:", error);
+    return sendResponse(res, 500, "Failed to reject kitchen");
+  }
+}
+
 export default {
   createUser,
   getUsers,
@@ -1129,6 +1292,9 @@ export default {
   getPendingDrivers,
   approveDriver,
   rejectDriver,
+  getPendingKitchens,
+  approveKitchen,
+  rejectKitchen,
   getAuditLogs,
   getAuditLogById,
   getSystemConfig,

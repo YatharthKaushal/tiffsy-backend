@@ -228,6 +228,22 @@ const kitchenSchema = new mongoose.Schema(
     approvedAt: {
       type: Date,
     },
+
+    // Rejection tracking
+    rejectionReason: {
+      type: String,
+      trim: true,
+      maxlength: [500, "Rejection reason cannot exceed 500 characters"],
+    },
+
+    rejectedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+
+    rejectedAt: {
+      type: Date,
+    },
   },
   {
     timestamps: true,

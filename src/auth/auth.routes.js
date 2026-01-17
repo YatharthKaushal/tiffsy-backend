@@ -6,11 +6,14 @@ import {
   syncUserSchema,
   registerUserSchema,
   registerDriverSchema,
+  registerKitchenSchema,
+  resubmitKitchenSchema,
   completeProfileSchema,
   adminLoginSchema,
   changePasswordSchema,
   fcmTokenSchema,
 } from "./auth.validation.js";
+import { roleMiddleware } from "../../middlewares/auth.middleware.js";
 
 const router = Router();
 
@@ -57,6 +60,42 @@ router.post(
   firebaseAuthMiddleware,
   validateBody(registerDriverSchema),
   authController.registerDriver
+);
+
+/**
+ * POST /api/auth/register-kitchen
+ * Register new kitchen after Firebase OTP authentication
+ * Creates new partner kitchen account - requires admin approval
+ */
+router.post(
+  "/register-kitchen",
+  firebaseAuthMiddleware,
+  validateBody(registerKitchenSchema),
+  authController.registerKitchen
+);
+
+/**
+ * PATCH /api/auth/resubmit-kitchen
+ * Resubmit kitchen registration after rejection
+ * Allows kitchen staff to update details and resubmit for approval
+ */
+router.patch(
+  "/resubmit-kitchen",
+  authMiddleware,
+  roleMiddleware(["KITCHEN_STAFF"]),
+  validateBody(resubmitKitchenSchema),
+  authController.resubmitKitchen
+);
+
+/**
+ * GET /api/auth/my-kitchen-status
+ * Get kitchen approval status for kitchen staff
+ */
+router.get(
+  "/my-kitchen-status",
+  authMiddleware,
+  roleMiddleware(["KITCHEN_STAFF"]),
+  authController.getMyKitchenStatus
 );
 
 /**

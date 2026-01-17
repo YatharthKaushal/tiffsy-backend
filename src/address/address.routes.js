@@ -1,6 +1,6 @@
 import { Router } from "express";
 import addressController from "./address.controller.js";
-import { adminAuthMiddleware, roleMiddleware } from "../../middlewares/auth.middleware.js";
+import { adminAuthMiddleware, roleMiddleware, adminMiddleware } from "../../middlewares/auth.middleware.js";
 import { validateBody, validateQuery, validateParams } from "../../middlewares/validate.middleware.js";
 import {
   createAddressSchema,
@@ -21,6 +21,29 @@ const idParamSchema = Joi.object({
 const addressesQuerySchema = Joi.object({
   includeDeleted: Joi.boolean().default(false),
 });
+
+// Admin query schema for all addresses
+const adminAddressesQuerySchema = Joi.object({
+  page: Joi.number().integer().min(1).default(1),
+  limit: Joi.number().integer().min(1).max(100).default(20),
+  includeDeleted: Joi.boolean().default(false),
+  userId: Joi.string().hex().length(24).optional(),
+  zoneId: Joi.string().hex().length(24).optional(),
+  city: Joi.string().optional(),
+});
+
+/**
+ * ADMIN ROUTES
+ */
+
+// Get all customer addresses (Admin only)
+router.get(
+  "/admin/all",
+  adminAuthMiddleware,
+  adminMiddleware,
+  validateQuery(adminAddressesQuerySchema),
+  addressController.getAllCustomerAddresses
+);
 
 /**
  * PUBLIC/AUTHENTICATED ROUTES

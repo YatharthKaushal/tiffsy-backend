@@ -409,6 +409,63 @@ export const getServiceableKitchens = async (req, res) => {
   }
 };
 
+/**
+ * Get all customer addresses (Admin only)
+ * GET /api/address/admin/all
+ */
+export const getAllCustomerAddresses = async (req, res) => {
+  try {
+    const { page = 1, limit = 20, includeDeleted = false, userId, zoneId, city } = req.query;
+
+    // Build filter
+    const filter = {};
+    if (includeDeleted !== "true") {
+      filter.isDeleted = false;
+    }
+    if (userId) {
+      filter.userId = userId;
+    }
+    if (zoneId) {
+      filter.zoneId = zoneId;
+    }
+
+    // Pagination
+    const skip = (page - 1) * limit;
+
+    // Query addresses with user info
+    const [addresses, total] = await Promise.all([
+      CustomerAddress.find(filter)
+        .populate("userId", "name phone email")
+        .populate("zoneId", "name city pincode status")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(parseInt(limit)),
+      CustomerAddress.countDocuments(filter),
+    ]);
+
+    // Filter by city if provided (after population)
+    let filteredAddresses = addresses;
+    if (city) {
+      filteredAddresses = addresses.filter(
+        (addr) => addr.zoneId?.city?.toLowerCase() === city.toLowerCase()
+      );
+    }
+
+    return sendResponse(res, 200, "All customer addresses retrieved", {
+      addresses: filteredAddresses,
+      pagination: {
+        total,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        pages: Math.ceil(total / limit),
+      },
+    });
+  } catch (error) {
+    console.error(`> Get all customer addresses error: ${error.message}`);
+    return sendResponse(res, 500, "Server error");
+  }
+};
+
 export default {
   createAddress,
   getAddresses,
@@ -418,4 +475,5 @@ export default {
   setDefaultAddress,
   checkServiceability,
   getServiceableKitchens,
+  getAllCustomerAddresses,
 };

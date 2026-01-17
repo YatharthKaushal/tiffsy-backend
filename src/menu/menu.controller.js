@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import MenuItem from "../../schema/menuItem.schema.js";
 import Addon from "../../schema/addon.schema.js";
 import Kitchen from "../../schema/kitchen.schema.js";
@@ -730,6 +731,143 @@ export const getMealMenuForWindow = async (req, res) => {
   }
 };
 
+/**
+ * Get kitchen's menu statistics
+ * @route GET /api/menu/my-kitchen/stats
+ * @access Kitchen Staff + Admin
+ */
+export const getMyKitchenMenuStats = async (req, res) => {
+  try {
+    // Determine kitchen ID based on role
+    const kitchenId =
+      req.user.role === "KITCHEN_STAFF"
+        ? req.user.kitchenId
+        : req.query.kitchenId;
+
+    if (!kitchenId) {
+      return sendResponse(res, 400, "Kitchen ID is required");
+    }
+
+    // Access control for kitchen staff
+    if (
+      req.user.role === "KITCHEN_STAFF" &&
+      req.user.kitchenId?.toString() !== kitchenId
+    ) {
+      return sendResponse(res, 403, "Access denied to this kitchen");
+    }
+
+    // Aggregate menu statistics
+    const stats = await MenuItem.aggregate([
+      {
+        $match: { kitchenId: new mongoose.Types.ObjectId(kitchenId) },
+      },
+      {
+        $facet: {
+          totals: [
+            {
+              $group: {
+                _id: null,
+                total: { $sum: 1 },
+                active: {
+                  $sum: {
+                    $cond: [{ $eq: ["$status", "ACTIVE"] }, 1, 0],
+                  },
+                },
+                available: {
+                  $sum: {
+                    $cond: [
+                      {
+                        $and: [
+                          { $eq: ["$status", "ACTIVE"] },
+                          { $eq: ["$isAvailable", true] },
+                        ],
+                      },
+                      1,
+                      0,
+                    ],
+                  },
+                },
+              },
+            },
+          ],
+          byCategory: [
+            {
+              $group: {
+                _id: "$category",
+                count: { $sum: 1 },
+              },
+            },
+          ],
+          byMenuType: [
+            {
+              $group: {
+                _id: "$menuType",
+                count: { $sum: 1 },
+              },
+            },
+          ],
+          mealMenu: [
+            {
+              $match: { menuType: "MEAL_MENU" },
+            },
+            {
+              $group: {
+                _id: "$mealWindow",
+                item: { $first: "$$ROOT" },
+              },
+            },
+          ],
+        },
+      },
+    ]);
+
+    const totals = stats[0]?.totals?.[0] || {
+      total: 0,
+      active: 0,
+      available: 0,
+    };
+
+    const byCategory = {};
+    stats[0]?.byCategory?.forEach((c) => {
+      byCategory[c._id] = c.count;
+    });
+
+    const byMenuType = {};
+    stats[0]?.byMenuType?.forEach((m) => {
+      byMenuType[m._id] = m.count;
+    });
+
+    const mealMenuStatus = {
+      lunch: { exists: false, item: null, isAvailable: false },
+      dinner: { exists: false, item: null, isAvailable: false },
+    };
+
+    stats[0]?.mealMenu?.forEach((m) => {
+      const window = m._id?.toLowerCase();
+      if (window === "lunch" || window === "dinner") {
+        mealMenuStatus[window] = {
+          exists: true,
+          item: m.item,
+          isAvailable: m.item.status === "ACTIVE" && m.item.isAvailable,
+        };
+      }
+    });
+
+    return sendResponse(res, 200, "Menu statistics retrieved", {
+      totalItems: totals.total,
+      activeItems: totals.active,
+      availableItems: totals.available,
+      inactiveItems: totals.total - totals.active,
+      byCategory,
+      byMenuType,
+      mealMenuStatus,
+    });
+  } catch (error) {
+    console.log("> Get menu stats error:", error);
+    return sendResponse(res, 500, "Failed to retrieve menu statistics");
+  }
+};
+
 export default {
   createMenuItem,
   getMenuItems,
@@ -742,4 +880,5 @@ export default {
   enableMenuItem,
   getKitchenMenu,
   getMealMenuForWindow,
+  getMyKitchenMenuStats,
 };

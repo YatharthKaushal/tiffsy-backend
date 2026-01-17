@@ -216,4 +216,24 @@ router.delete(
   kitchenController.deleteKitchen
 );
 
+/**
+ * KITCHEN DASHBOARD & ANALYTICS
+ */
+
+// Get kitchen dashboard (aggregated stats)
+router.get(
+  "/dashboard",
+  adminAuthMiddleware,
+  roleMiddleware(["KITCHEN_STAFF", "ADMIN"]),
+  kitchenController.getKitchenDashboard
+);
+
+// Get kitchen analytics (historical performance)
+router.get(
+  "/analytics",
+  adminAuthMiddleware,
+  roleMiddleware(["KITCHEN_STAFF", "ADMIN"]),
+  kitchenController.getKitchenAnalytics
+);
+
 export default router;

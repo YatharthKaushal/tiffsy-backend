@@ -143,4 +143,16 @@ router.patch(
   menuController.enableMenuItem
 );
 
+/**
+ * KITCHEN DASHBOARD ROUTES
+ */
+
+// Get kitchen's menu statistics
+router.get(
+  "/my-kitchen/stats",
+  adminAuthMiddleware,
+  roleMiddleware(["KITCHEN_STAFF", "ADMIN"]),
+  menuController.getMyKitchenMenuStats
+);
+
 export default router;

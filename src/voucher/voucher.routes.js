@@ -8,6 +8,7 @@ import {
   restoreVouchersSchema,
   adminRestoreSchema,
   updateCutoffTimesSchema,
+  getBalanceSchema,
   queryVouchersSchema,
   adminQueryVouchersSchema,
 } from "./voucher.validation.js";
@@ -45,6 +46,7 @@ router.get(
   "/balance",
   adminAuthMiddleware,
   roleMiddleware(["CUSTOMER", "ADMIN"]),
+  validateQuery(getBalanceSchema),
   voucherController.getVoucherBalance
 );
 

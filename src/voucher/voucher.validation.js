@@ -90,6 +90,13 @@ export const updateCutoffTimesSchema = Joi.object({
 });
 
 /**
+ * Get voucher balance (with optional userId for admin)
+ */
+export const getBalanceSchema = Joi.object({
+  userId: Joi.string().hex().length(24).optional(),
+});
+
+/**
  * Query vouchers
  */
 export const queryVouchersSchema = Joi.object({
@@ -118,6 +125,7 @@ export default {
   restoreVouchersSchema,
   adminRestoreSchema,
   updateCutoffTimesSchema,
+  getBalanceSchema,
   queryVouchersSchema,
   adminQueryVouchersSchema,
 };

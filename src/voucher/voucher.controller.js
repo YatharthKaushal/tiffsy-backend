@@ -110,10 +110,20 @@ const calculateVoucherBalance = async (userId) => {
  * Get voucher balance
  *
  * GET /api/vouchers/balance
+ * GET /api/vouchers/balance?userId=<userId> (Admin only)
  */
 export const getVoucherBalance = async (req, res) => {
   try {
-    const userId = req.user._id;
+    // Allow admins to query any user's balance via userId query param
+    const { userId: queryUserId } = req.query;
+    const userId = queryUserId || req.user._id;
+
+    // If querying another user's balance, verify admin role
+    if (queryUserId && queryUserId !== req.user._id.toString()) {
+      if (req.user.role !== "ADMIN") {
+        return sendResponse(res, 403, "Forbidden: Admin access required");
+      }
+    }
 
     // Get balance
     const balance = await calculateVoucherBalance(userId);
@@ -190,7 +200,7 @@ export const getMyVouchers = async (req, res) => {
     // Calculate complete summary from ALL user's vouchers (not just filtered/paginated results)
     // This ensures frontend gets accurate counts regardless of pagination
     const allVouchersSummary = await Voucher.aggregate([
-      { $match: { userId } },
+      { $match: { userId: new mongoose.Types.ObjectId(userId) } },
       {
         $group: {
           _id: "$status",
@@ -461,9 +471,9 @@ export const restoreVouchers = async (req, res) => {
   }
 };
 
-// 
+//
 // ADMIN FUNCTIONS
-// 
+//
 
 /**
  * Get all vouchers (admin view)

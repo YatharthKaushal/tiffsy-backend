@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import Voucher from "../../schema/voucher.schema.js";
 import Subscription from "../../schema/subscription.schema.js";
 import Kitchen from "../../schema/kitchen.schema.js";
@@ -77,7 +78,7 @@ const getAvailableVouchers = async (userId, count = null) => {
  */
 const calculateVoucherBalance = async (userId) => {
   const stats = await Voucher.aggregate([
-    { $match: { userId } },
+    { $match: { userId: new mongoose.Types.ObjectId(userId) } },
     { $group: { _id: "$status", count: { $sum: 1 } } },
   ]);
 

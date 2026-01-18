@@ -99,6 +99,12 @@ router.get(
 );
 
 /**
+ * GET /api/auth/profile
+ * Get current authenticated user's profile (alias for /me)
+ */
+router.get("/profile", authMiddleware, authController.getCurrentUser);
+
+/**
  * PUT /api/auth/profile
  * Complete or update user profile (for existing users)
  */

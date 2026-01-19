@@ -1,0 +1,225 @@
+═══════════════════════════════════════════════════════════════════════
+📋 COPY-PASTE READY PROMPT FOR CLAUDE
+═══════════════════════════════════════════════════════════════════════
+
+Hi Claude! I'm implementing authentication for the Tiffsy mobile app.
+
+CONTEXT:
+- Platform: [React Native / Flutter / React / other]
+- Backend: Node.js + Express + MongoDB
+- Authentication: Firebase Phone OTP + Backend Sync
+- User Roles: CUSTOMER, KITCHEN_STAFF, DRIVER, ADMIN
+
+DOCUMENTATION:
+I have comprehensive authentication documentation from the backend team that includes:
+- Complete implementation guide with API reference
+- Flow diagrams for all user types
+- Troubleshooting guide
+- Quick reference card
+
+CRITICAL REQUIREMENTS (from documentation):
+1. MUST call POST /api/auth/sync immediately after Firebase OTP verification
+2. MUST handle token refresh (Firebase tokens expire after 1 hour)
+3. MUST check approval status for Kitchen Staff and Drivers
+4. MUST handle role-based navigation
+
+WHAT I NEED HELP WITH:
+[Choose one or describe your specific need:]
+
+□ Implement complete authentication flow from scratch
+□ Debug authentication error: [describe error]
+□ Implement registration for: [CUSTOMER / KITCHEN_STAFF / DRIVER]
+□ Add token refresh logic
+□ Handle approval pending states
+□ Review existing authentication code
+□ Other: [describe]
+
+MY SETUP:
+- Framework: [React Native / Flutter / etc.]
+- State Management: [Redux / Context API / Bloc / etc.]
+- API Client: [fetch / axios / dio / etc.]
+- Firebase Package: [specify]
+
+CURRENT SITUATION:
+[Describe what you've done and where you're stuck]
+
+EXPECTED OUTPUT:
+Please provide:
+1. Code implementation following the documentation patterns
+2. Explanation of critical authentication points
+3. Error handling for all edge cases
+4. References to relevant documentation sections
+
+I will attach the authentication documentation files for reference.
+
+═══════════════════════════════════════════════════════════════════════
+📎 ATTACH THESE FILES TO CLAUDE
+═══════════════════════════════════════════════════════════════════════
+
+REQUIRED:
+✅ AUTHENTICATION_FLOW_GUIDE.md
+✅ AUTH_QUICK_REFERENCE.md
+
+OPTIONAL (based on needs):
+□ AUTHENTICATION_TROUBLESHOOTING.md (if debugging)
+□ AUTHENTICATION_FLOW_DIAGRAM.md (if need visual understanding)
+□ README_AUTHENTICATION.md (for complete overview)
+
+═══════════════════════════════════════════════════════════════════════
+🎯 QUICK START SCENARIOS
+═══════════════════════════════════════════════════════════════════════
+
+SCENARIO 1: Starting from Scratch (Customer)
+───────────────────────────────────────────
+Replace [WHAT I NEED HELP WITH] section with:
+
+I need to implement the complete authentication flow for CUSTOMER users from scratch.
+
+Setup completed:
+- Firebase Auth configured ✅
+- API base URL: https://api.tiffsy.com/api
+
+Requirements:
+- Firebase Phone OTP authentication
+- Call /api/auth/sync after OTP
+- Registration flow for new users
+- Login flow for existing users
+- Token refresh every 50 minutes
+- Error handling
+
+Using: React Native, React Context, fetch, @react-native-firebase/auth
+
+Please provide complete implementation with Authentication Context, API helpers,
+and navigation logic.
+
+
+SCENARIO 2: Kitchen Staff Implementation
+─────────────────────────────────────────
+Replace [WHAT I NEED HELP WITH] section with:
+
+I need to implement authentication for KITCHEN_STAFF users with approval workflow.
+
+Requirements:
+- Kitchen registration with address and operating hours
+- Check kitchenApprovalStatus in sync response
+- Show PENDING approval screen
+- Show REJECTED screen with reason
+- Navigate to dashboard when APPROVED
+- Access GET /api/kitchens/dashboard endpoint
+
+Using: React Native with TypeScript
+
+Please provide kitchen registration form, approval status handling, and
+dashboard access logic.
+
+
+SCENARIO 3: Debugging 403 Error
+────────────────────────────────
+Replace [WHAT I NEED HELP WITH] section with:
+
+I'm getting "403 Forbidden - Access denied to this kitchen" error.
+
+Error Details:
+- User Role: KITCHEN_STAFF
+- Endpoint: GET /api/kitchens/dashboard
+- Error: "Access denied to this kitchen"
+
+Current Flow:
+1. User enters phone → OTP sent ✅
+2. OTP verified → Firebase token received ✅
+3. Navigate to dashboard
+4. API call fails with 403
+
+Code:
+[paste your authentication code here]
+
+Please help debug using the troubleshooting guide and ensure /api/auth/sync
+is called correctly.
+
+
+SCENARIO 4: Token Refresh Implementation
+─────────────────────────────────────────
+Replace [WHAT I NEED HELP WITH] section with:
+
+I need to implement proper token management and refresh logic.
+
+Requirements:
+- Firebase tokens expire after 1 hour
+- Refresh token before API calls
+- Auto-refresh every 50 minutes
+- Handle token expiration gracefully
+
+Current: Using fetch for API calls
+
+Please provide a robust API client with automatic token refresh.
+
+
+SCENARIO 5: Driver Registration & Approval
+───────────────────────────────────────────
+Replace [WHAT I NEED HELP WITH] section with:
+
+I need to implement driver registration with document upload and approval handling.
+
+Requirements:
+- Registration form with license and vehicle details
+- Image upload for documents (license, RC, insurance)
+- Check approvalStatus in sync response
+- Show PENDING approval screen
+- Show REJECTED screen with rejection reason
+- Allow resubmission if rejected
+
+Using: React Native with expo-image-picker
+
+Please provide complete driver registration flow with approval status handling.
+
+
+SCENARIO 6: Code Review
+───────────────────────
+Replace [WHAT I NEED HELP WITH] section with:
+
+I have existing authentication code that needs review.
+
+Please review against the documentation and check:
+- Is /api/auth/sync called correctly?
+- Is token refresh implemented properly?
+- Are approval statuses handled?
+- Is error handling comprehensive?
+- Does navigation logic match documentation?
+
+My Code:
+[paste your code here]
+
+Please provide detailed feedback with references to documentation sections.
+
+═══════════════════════════════════════════════════════════════════════
+✅ SUCCESS CHECKLIST
+═══════════════════════════════════════════════════════════════════════
+
+Your implementation is correct when:
+
+□ /api/auth/sync is called immediately after Firebase OTP
+□ Token refresh is implemented
+□ New users can register
+□ Existing users can login
+□ Role-based navigation works
+□ Kitchen Staff approval states handled
+□ Driver approval states handled
+□ Errors handled gracefully
+□ Profile updates work
+□ FCM tokens registered
+
+═══════════════════════════════════════════════════════════════════════
+📞 NEED MORE HELP?
+═══════════════════════════════════════════════════════════════════════
+
+If Claude's response doesn't address your needs:
+
+1. Ask Claude to reference specific documentation sections
+2. Request code examples for specific scenarios
+3. Ask Claude to explain the authentication flow step-by-step
+4. Request error handling for specific error codes
+5. Ask for testing recommendations
+
+═══════════════════════════════════════════════════════════════════════
+
+READY TO USE: Copy everything above, fill in your details, and send to Claude!

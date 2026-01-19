@@ -933,7 +933,7 @@ export const getKitchenDashboard = async (req, res) => {
     // Determine kitchen ID based on role
     const kitchenId =
       req.user.role === "KITCHEN_STAFF"
-        ? req.user.kitchenId
+        ? req.user.kitchenId?.toString()
         : req.query.kitchenId;
 
     if (!kitchenId) {
@@ -1148,7 +1148,7 @@ export const getKitchenAnalytics = async (req, res) => {
     // Determine kitchen ID based on role
     const kitchenId =
       req.user.role === "KITCHEN_STAFF"
-        ? req.user.kitchenId
+        ? req.user.kitchenId?.toString()
         : req.query.kitchenId;
 
     if (!kitchenId) {

@@ -118,6 +118,27 @@ router.get(
   kitchenController.getKitchens
 );
 
+/**
+ * KITCHEN DASHBOARD & ANALYTICS
+ * Note: These must come BEFORE /:id route to avoid matching dashboard/analytics as :id
+ */
+
+// Get kitchen dashboard (aggregated stats)
+router.get(
+  "/dashboard",
+  adminAuthMiddleware,
+  roleMiddleware(["KITCHEN_STAFF", "ADMIN"]),
+  kitchenController.getKitchenDashboard
+);
+
+// Get kitchen analytics (historical performance)
+router.get(
+  "/analytics",
+  adminAuthMiddleware,
+  roleMiddleware(["KITCHEN_STAFF", "ADMIN"]),
+  kitchenController.getKitchenAnalytics
+);
+
 // Get kitchen by ID
 router.get(
   "/:id",
@@ -214,26 +235,6 @@ router.delete(
   adminMiddleware,
   validateParams(idParamSchema),
   kitchenController.deleteKitchen
-);
-
-/**
- * KITCHEN DASHBOARD & ANALYTICS
- */
-
-// Get kitchen dashboard (aggregated stats)
-router.get(
-  "/dashboard",
-  adminAuthMiddleware,
-  roleMiddleware(["KITCHEN_STAFF", "ADMIN"]),
-  kitchenController.getKitchenDashboard
-);
-
-// Get kitchen analytics (historical performance)
-router.get(
-  "/analytics",
-  adminAuthMiddleware,
-  roleMiddleware(["KITCHEN_STAFF", "ADMIN"]),
-  kitchenController.getKitchenAnalytics
 );
 
 export default router;

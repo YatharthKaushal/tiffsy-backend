@@ -136,7 +136,7 @@ export const queryMyOrdersSchema = Joi.object({
 export const queryKitchenOrdersSchema = Joi.object({
   status: Joi.string().valid(...ORDER_STATUSES),
   mealWindow: Joi.string().valid(...MEAL_WINDOWS),
-  date: Joi.date().default(() => new Date()),
+  date: Joi.date(), // Optional - if not provided, returns all orders
   page: Joi.number().integer().min(1).default(1),
   limit: Joi.number().integer().min(1).max(100).default(50),
 });

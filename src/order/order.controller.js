@@ -1146,17 +1146,18 @@ export async function getKitchenOrders(req, res) {
       return sendResponse(res, 403, false, "Not associated with a kitchen");
     }
 
-    // Build query for today's orders by default
-    const targetDate = date ? new Date(date) : new Date();
-    const startOfDay = new Date(targetDate);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(targetDate);
-    endOfDay.setHours(23, 59, 59, 999);
+    // Build query - filter by date only if provided
+    const query = { kitchenId };
 
-    const query = {
-      kitchenId,
-      placedAt: { $gte: startOfDay, $lte: endOfDay },
-    };
+    // Only filter by date if explicitly provided
+    if (date) {
+      const targetDate = new Date(date);
+      const startOfDay = new Date(targetDate);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(targetDate);
+      endOfDay.setHours(23, 59, 59, 999);
+      query.placedAt = { $gte: startOfDay, $lte: endOfDay };
+    }
 
     if (status) query.status = status;
     if (mealWindow) query.mealWindow = mealWindow;

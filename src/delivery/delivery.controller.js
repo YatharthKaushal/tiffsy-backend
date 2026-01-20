@@ -945,10 +945,200 @@ export async function updateDeliverySequence(req, res) {
 }
 
 /**
- * 
- * KITCHEN STAFF - BATCH VIEWING
- * 
+ *
+ * KITCHEN STAFF - BATCH MANAGEMENT
+ *
  */
+
+/**
+ * Auto-batch orders for kitchen staff's own kitchen
+ * @route POST /api/delivery/my-kitchen/auto-batch
+ * @access Kitchen Staff
+ */
+export async function autoBatchMyKitchenOrders(req, res) {
+  try {
+    const kitchenId = req.user.kitchenId;
+    const { mealWindow } = req.body;
+
+    if (!kitchenId) {
+      return sendResponse(res, 403, false, "Not associated with a kitchen");
+    }
+
+    // Build query for unbatched ready orders for this kitchen only
+    const query = {
+      menuType: "MEAL_MENU",
+      status: { $in: ["ACCEPTED", "PREPARING", "READY"] },
+      batchId: null,
+      kitchenId: kitchenId,
+    };
+
+    if (mealWindow) query.mealWindow = mealWindow;
+
+    const orders = await Order.find(query);
+
+    if (orders.length === 0) {
+      return sendResponse(res, 200, true, "No orders to batch", {
+        batchesCreated: 0,
+        batchesUpdated: 0,
+        ordersProcessed: 0,
+        batches: [],
+      });
+    }
+
+    // Fetch kitchen to get operating hours
+    const kitchen = await Kitchen.findById(kitchenId);
+    if (!kitchen) {
+      return sendResponse(res, 404, false, "Kitchen not found");
+    }
+
+    // Group orders by zone + mealWindow
+    const groups = {};
+    for (const order of orders) {
+      const key = `${order.zoneId}_${order.mealWindow}`;
+      if (!groups[key]) {
+        groups[key] = {
+          zoneId: order.zoneId,
+          mealWindow: order.mealWindow,
+          orders: [],
+        };
+      }
+      groups[key].orders.push(order);
+    }
+
+    let batchesCreated = 0;
+    let batchesUpdated = 0;
+    let ordersProcessed = 0;
+    const batchSummaries = [];
+
+    // Process each group
+    for (const key of Object.keys(groups)) {
+      const group = groups[key];
+
+      // Get window end time using kitchen's operating hours
+      const windowEndTime = getWindowEndTime(group.mealWindow, kitchen);
+
+      // Find or create batch
+      const { batch, wasCreated } = await findOrCreateBatch(
+        kitchenId,
+        group.zoneId,
+        group.mealWindow,
+        windowEndTime
+      );
+
+      if (wasCreated) {
+        batchesCreated++;
+      } else {
+        batchesUpdated++;
+      }
+
+      // Add orders to batch (up to max size)
+      const availableSlots = BATCH_CONFIG.maxBatchSize - batch.orderIds.length;
+      const ordersToAdd = group.orders.slice(0, availableSlots);
+
+      for (const order of ordersToAdd) {
+        await batch.addOrder(order._id);
+        order.batchId = batch._id;
+        await order.save();
+        ordersProcessed++;
+      }
+
+      batchSummaries.push({
+        batchId: batch._id,
+        batchNumber: batch.batchNumber,
+        orderCount: batch.orderIds.length,
+        zone: group.zoneId,
+        mealWindow: group.mealWindow,
+      });
+    }
+
+    console.log(`> Kitchen staff auto-batched ${ordersProcessed} orders for kitchen ${kitchen.name}`);
+
+    return sendResponse(res, 200, true, "Auto-batching complete", {
+      batchesCreated,
+      batchesUpdated,
+      ordersProcessed,
+      batches: batchSummaries,
+    });
+  } catch (error) {
+    console.log("Auto-batch my kitchen orders error:", error);
+    return sendResponse(res, 500, false, "Failed to auto-batch orders");
+  }
+}
+
+/**
+ * Dispatch batches for kitchen staff's own kitchen
+ * @route POST /api/delivery/my-kitchen/dispatch
+ * @access Kitchen Staff
+ */
+export async function dispatchMyKitchenBatches(req, res) {
+  try {
+    const kitchenId = req.user.kitchenId;
+    const { mealWindow, forceDispatch = false } = req.body;
+
+    if (!kitchenId) {
+      return sendResponse(res, 403, false, "Not associated with a kitchen");
+    }
+
+    // Fetch kitchen to get dynamic operating hours
+    const kitchen = await Kitchen.findById(kitchenId);
+    if (!kitchen) {
+      return sendResponse(res, 404, false, "Kitchen not found");
+    }
+
+    // FR-DLV-9: Verify meal window / order cutoff time has passed before allowing dispatch
+    const cutoffInfo = checkCutoffTime(mealWindow, kitchen);
+
+    if (!cutoffInfo.isPastCutoff && !forceDispatch) {
+      return sendResponse(
+        res,
+        400,
+        false,
+        `Cannot dispatch ${mealWindow} batches yet. Meal window ends at ${cutoffInfo.cutoffTime} (current: ${cutoffInfo.currentTime}). Wait for cutoff or contact admin for force dispatch.`
+      );
+    }
+
+    // Find batches ready for dispatch for this kitchen only
+    const batchQuery = {
+      status: "COLLECTING",
+      mealWindow,
+      kitchenId,
+      orderIds: { $ne: [] },
+    };
+
+    const batches = await DeliveryBatch.find(batchQuery);
+
+    if (batches.length === 0) {
+      return sendResponse(res, 200, true, "No batches to dispatch", {
+        batchesDispatched: 0,
+        batches: [],
+      });
+    }
+
+    const dispatchedBatches = [];
+
+    for (const batch of batches) {
+      batch.status = "READY_FOR_DISPATCH";
+      await batch.save();
+
+      dispatchedBatches.push({
+        batchId: batch._id,
+        batchNumber: batch.batchNumber,
+        status: batch.status,
+        orderCount: batch.orderIds.length,
+      });
+    }
+
+    console.log(`> Kitchen staff dispatched ${batches.length} batches for kitchen ${kitchen.name}`);
+
+    return sendResponse(res, 200, true, "Batches dispatched", {
+      batchesDispatched: batches.length,
+      batches: dispatchedBatches,
+    });
+  } catch (error) {
+    console.log("Dispatch my kitchen batches error:", error);
+    return sendResponse(res, 500, false, "Failed to dispatch batches");
+  }
+}
 
 /**
  * Get batches for kitchen
@@ -1430,6 +1620,8 @@ export async function getBatchConfig(req, res) {
 export default {
   autoBatchOrders,
   dispatchBatches,
+  autoBatchMyKitchenOrders,
+  dispatchMyKitchenBatches,
   getAvailableBatches,
   getDriverBatchHistory,
   acceptBatch,

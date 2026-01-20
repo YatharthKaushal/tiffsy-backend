@@ -5,6 +5,7 @@ import { validateBody, validateQuery, validateParams } from "../../middlewares/v
 import {
   createKitchenSchema,
   updateKitchenSchema,
+  updateMyKitchenSchema,
   assignZonesSchema,
   toggleOrderingSchema,
   queryKitchensSchema,
@@ -66,6 +67,15 @@ router.get(
   adminAuthMiddleware,
   roleMiddleware(["KITCHEN_STAFF", "ADMIN"]),
   kitchenController.getMyKitchen
+);
+
+// Update my kitchen details (name, address, contact, etc.)
+router.put(
+  "/my-kitchen",
+  adminAuthMiddleware,
+  roleMiddleware(["KITCHEN_STAFF", "ADMIN"]),
+  validateBody(updateMyKitchenSchema),
+  kitchenController.updateMyKitchenDetails
 );
 
 // Update my kitchen images

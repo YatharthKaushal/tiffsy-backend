@@ -108,6 +108,33 @@ export const toggleOrderingSchema = Joi.object({
 });
 
 /**
+ * Update my kitchen (Kitchen Staff)
+ * Allows kitchen staff to update their own kitchen details
+ */
+export const updateMyKitchenSchema = Joi.object({
+  name: Joi.string().min(2).max(100).trim(),
+  description: Joi.string().max(1000).trim().allow("", null),
+  cuisineTypes: Joi.array().items(Joi.string().max(50).trim()),
+  address: Joi.object({
+    addressLine1: Joi.string().max(200).trim(),
+    addressLine2: Joi.string().max(200).trim().allow("", null),
+    locality: Joi.string().max(100).trim(),
+    city: Joi.string().max(100).trim(),
+    state: Joi.string().max(100).trim().allow("", null),
+    pincode: Joi.string().length(6).pattern(/^[0-9]+$/),
+    coordinates: Joi.object({
+      latitude: Joi.number().min(-90).max(90),
+      longitude: Joi.number().min(-180).max(180),
+    }),
+  }),
+  operatingHours: operatingHoursSchema,
+  contactPhone: Joi.string().pattern(/^\+?[0-9]{10,15}$/).allow("", null),
+  contactEmail: Joi.string().email().allow("", null),
+  logo: Joi.string().uri().allow("", null),
+  coverImage: Joi.string().uri().allow("", null),
+});
+
+/**
  * Query kitchens
  */
 export const queryKitchensSchema = Joi.object({
@@ -122,6 +149,7 @@ export const queryKitchensSchema = Joi.object({
 export default {
   createKitchenSchema,
   updateKitchenSchema,
+  updateMyKitchenSchema,
   assignZonesSchema,
   toggleOrderingSchema,
   queryKitchensSchema,

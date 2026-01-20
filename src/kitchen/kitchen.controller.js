@@ -924,6 +924,72 @@ export const updateMyKitchenImages = async (req, res) => {
 };
 
 /**
+ * Update my kitchen details (Kitchen Staff)
+ * Allows kitchen staff to update their own kitchen's basic info
+ *
+ * PUT /api/kitchens/my-kitchen
+ */
+export const updateMyKitchenDetails = async (req, res) => {
+  try {
+    const user = req.user;
+    const updates = req.body;
+
+    if (!user.kitchenId) {
+      return sendResponse(res, 404, "No kitchen assigned to your account");
+    }
+
+    const kitchen = await Kitchen.findById(user.kitchenId);
+    if (!kitchen) {
+      return sendResponse(res, 404, "Kitchen not found");
+    }
+
+    // Capture old values for audit
+    const oldValue = kitchen.toObject();
+
+    // Kitchen staff can update these fields
+    const allowedFields = [
+      "name",
+      "description",
+      "cuisineTypes",
+      "address",
+      "operatingHours",
+      "contactPhone",
+      "contactEmail",
+      "logo",
+      "coverImage",
+    ];
+
+    for (const field of allowedFields) {
+      if (updates[field] !== undefined) {
+        kitchen[field] = updates[field];
+      }
+    }
+
+    await kitchen.save();
+
+    // Log audit entry
+    safeAuditLog(req, {
+      action: "UPDATE",
+      entityType: "KITCHEN",
+      entityId: kitchen._id,
+      oldValue,
+      newValue: kitchen.toObject(),
+      description: `Kitchen staff updated kitchen: ${kitchen.name}`,
+    });
+
+    // Populate zones for response
+    await kitchen.populate("zonesServed", "name code city");
+
+    console.log(`> Kitchen staff updated kitchen: ${kitchen.name}`);
+
+    return sendResponse(res, 200, "Kitchen updated successfully", { kitchen });
+  } catch (error) {
+    console.log("> Update my kitchen details error:", error);
+    return sendResponse(res, 500, "Server error");
+  }
+};
+
+/**
  * Get kitchen dashboard with aggregated stats
  * @route GET /api/kitchens/dashboard
  * @access Kitchen Staff + Admin
@@ -1343,6 +1409,7 @@ export default {
   getKitchenPublicDetails,
   getMyKitchen,
   updateMyKitchenImages,
+  updateMyKitchenDetails,
   getKitchenDashboard,
   getKitchenAnalytics,
 };

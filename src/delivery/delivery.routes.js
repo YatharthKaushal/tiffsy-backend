@@ -5,6 +5,8 @@ import { validateBody, validateQuery, validateParams } from "../../middlewares/v
 import {
   autoBatchSchema,
   dispatchBatchesSchema,
+  myKitchenAutoBatchSchema,
+  myKitchenDispatchSchema,
   updateDeliveryStatusSchema,
   updateDeliverySequenceSchema,
   queryKitchenBatchesSchema,
@@ -79,6 +81,24 @@ router.get(
 /**
  * KITCHEN STAFF ROUTES
  */
+
+// Auto-batch orders for kitchen staff's own kitchen
+router.post(
+  "/my-kitchen/auto-batch",
+  adminAuthMiddleware,
+  roleMiddleware(["KITCHEN_STAFF", "ADMIN"]),
+  validateBody(myKitchenAutoBatchSchema),
+  deliveryController.autoBatchMyKitchenOrders
+);
+
+// Dispatch batches for kitchen staff's own kitchen
+router.post(
+  "/my-kitchen/dispatch",
+  adminAuthMiddleware,
+  roleMiddleware(["KITCHEN_STAFF", "ADMIN"]),
+  validateBody(myKitchenDispatchSchema),
+  deliveryController.dispatchMyKitchenBatches
+);
 
 // Get kitchen batches
 router.get(

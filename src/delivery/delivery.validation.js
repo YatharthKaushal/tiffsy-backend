@@ -60,6 +60,26 @@ export const dispatchBatchesSchema = Joi.object({
 });
 
 /**
+ * Kitchen staff auto-batch (my kitchen)
+ */
+export const myKitchenAutoBatchSchema = Joi.object({
+  mealWindow: Joi.string().valid(...MEAL_WINDOWS),
+});
+
+/**
+ * Kitchen staff dispatch batches (my kitchen)
+ */
+export const myKitchenDispatchSchema = Joi.object({
+  mealWindow: Joi.string()
+    .valid(...MEAL_WINDOWS)
+    .required()
+    .messages({
+      "any.required": "Meal window is required for dispatch",
+    }),
+  forceDispatch: Joi.boolean().optional().default(false),
+});
+
+/**
  * Accept batch
  */
 export const acceptBatchSchema = Joi.object({});
@@ -208,6 +228,8 @@ export const queryDeliveryStatsSchema = Joi.object({
 export default {
   autoBatchSchema,
   dispatchBatchesSchema,
+  myKitchenAutoBatchSchema,
+  myKitchenDispatchSchema,
   acceptBatchSchema,
   updateBatchPickupSchema,
   updateDeliveryStatusSchema,

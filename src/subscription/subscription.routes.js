@@ -14,6 +14,7 @@ import {
   updateAutoOrderSettingsSchema,
   pauseSubscriptionSchema,
   skipMealSchema,
+  unskipMealSchema,
 } from "./subscription.validation.js";
 import Joi from "joi";
 
@@ -233,6 +234,16 @@ router.post(
   validateParams(idParamSchema),
   validateBody(skipMealSchema),
   subscriptionController.skipMeal
+);
+
+// Unskip a meal (remove from skipped slots)
+router.post(
+  "/:id/unskip-meal",
+  adminAuthMiddleware,
+  roleMiddleware(["CUSTOMER", "ADMIN"]),
+  validateParams(idParamSchema),
+  validateBody(unskipMealSchema),
+  subscriptionController.unskipMeal
 );
 
 export default router;

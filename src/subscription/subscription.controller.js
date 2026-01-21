@@ -978,16 +978,28 @@ export const updateAutoOrderSettings = async (req, res) => {
 
     const subscription = await Subscription.findById(id);
     if (!subscription) {
-      return sendResponse(res, 404, "Subscription not found");
+      return sendResponse(res, 404, false, "Subscription not found");
     }
 
     // Verify ownership (unless admin)
     if (req.user.role !== "ADMIN" && subscription.userId.toString() !== userId.toString()) {
-      return sendResponse(res, 403, "Access denied");
+      return sendResponse(res, 403, false, "Access denied");
     }
 
     if (subscription.status !== "ACTIVE") {
-      return sendResponse(res, 400, "Can only update settings for active subscriptions");
+      return sendResponse(res, 400, false, "Can only update settings for active subscriptions");
+    }
+
+    // Validation: If enabling auto-ordering, require kitchen and address
+    if (autoOrderingEnabled === true) {
+      const kitchenId = defaultKitchenId || subscription.defaultKitchenId;
+      const addressId = defaultAddressId || subscription.defaultAddressId;
+      if (!kitchenId) {
+        return sendResponse(res, 400, false, "Default kitchen is required to enable auto-ordering");
+      }
+      if (!addressId) {
+        return sendResponse(res, 400, false, "Default address is required to enable auto-ordering");
+      }
     }
 
     // Update fields
@@ -1006,12 +1018,22 @@ export const updateAutoOrderSettings = async (req, res) => {
 
     await subscription.save();
 
+    // Populate the updated subscription for response
+    await subscription.populate("defaultKitchenId", "name");
+    await subscription.populate("defaultAddressId", "addressLine1 city");
+
     console.log(`> Auto-order settings updated for subscription: ${id}`);
 
-    return sendResponse(res, 200, "Auto-order settings updated", { subscription });
+    return sendResponse(res, 200, true, "Auto-order settings updated", {
+      subscription,
+      autoOrderingEnabled: subscription.autoOrderingEnabled,
+      defaultMealType: subscription.defaultMealType,
+      defaultKitchen: subscription.defaultKitchenId,
+      defaultAddress: subscription.defaultAddressId,
+    });
   } catch (error) {
     console.log("> Update auto-order settings error:", error);
-    return sendResponse(res, 500, "Server error");
+    return sendResponse(res, 500, false, "Server error");
   }
 };
 
@@ -1023,36 +1045,44 @@ export const updateAutoOrderSettings = async (req, res) => {
 export const pauseSubscription = async (req, res) => {
   try {
     const { id } = req.params;
-    const { pauseUntil } = req.body;
+    const { pauseUntil, pauseReason } = req.body;
     const userId = req.user._id;
 
     const subscription = await Subscription.findById(id);
     if (!subscription) {
-      return sendResponse(res, 404, "Subscription not found");
+      return sendResponse(res, 404, false, "Subscription not found");
     }
 
     // Verify ownership (unless admin)
     if (req.user.role !== "ADMIN" && subscription.userId.toString() !== userId.toString()) {
-      return sendResponse(res, 403, "Access denied");
+      return sendResponse(res, 403, false, "Access denied");
     }
 
     if (subscription.status !== "ACTIVE") {
-      return sendResponse(res, 400, "Can only pause active subscriptions");
+      return sendResponse(res, 400, false, "Can only pause active subscriptions");
+    }
+
+    if (subscription.isPaused) {
+      return sendResponse(res, 400, false, "Subscription is already paused");
     }
 
     subscription.isPaused = true;
     subscription.pausedUntil = pauseUntil || null;
     await subscription.save();
 
-    console.log(`> Subscription paused: ${id}`);
+    console.log(`> Subscription paused: ${id}${pauseUntil ? ` until ${pauseUntil}` : " indefinitely"}`);
 
-    return sendResponse(res, 200, "Subscription paused", {
-      subscription,
+    return sendResponse(res, 200, true, "Auto-ordering paused", {
+      subscriptionId: subscription._id,
+      isPaused: true,
       pausedUntil: subscription.pausedUntil,
+      message: pauseUntil
+        ? `Auto-ordering paused until ${new Date(pauseUntil).toLocaleDateString()}`
+        : "Auto-ordering paused indefinitely. Resume manually when ready.",
     });
   } catch (error) {
     console.log("> Pause subscription error:", error);
-    return sendResponse(res, 500, "Server error");
+    return sendResponse(res, 500, false, "Server error");
   }
 };
 
@@ -1068,16 +1098,20 @@ export const resumeSubscription = async (req, res) => {
 
     const subscription = await Subscription.findById(id);
     if (!subscription) {
-      return sendResponse(res, 404, "Subscription not found");
+      return sendResponse(res, 404, false, "Subscription not found");
     }
 
     // Verify ownership (unless admin)
     if (req.user.role !== "ADMIN" && subscription.userId.toString() !== userId.toString()) {
-      return sendResponse(res, 403, "Access denied");
+      return sendResponse(res, 403, false, "Access denied");
     }
 
     if (subscription.status !== "ACTIVE") {
-      return sendResponse(res, 400, "Can only resume active subscriptions");
+      return sendResponse(res, 400, false, "Can only resume active subscriptions");
+    }
+
+    if (!subscription.isPaused) {
+      return sendResponse(res, 400, false, "Subscription is not paused");
     }
 
     subscription.isPaused = false;
@@ -1086,10 +1120,15 @@ export const resumeSubscription = async (req, res) => {
 
     console.log(`> Subscription resumed: ${id}`);
 
-    return sendResponse(res, 200, "Subscription resumed", { subscription });
+    return sendResponse(res, 200, true, "Auto-ordering resumed", {
+      subscriptionId: subscription._id,
+      isPaused: false,
+      autoOrderingEnabled: subscription.autoOrderingEnabled,
+      message: "Auto-ordering has been resumed successfully.",
+    });
   } catch (error) {
     console.log("> Resume subscription error:", error);
-    return sendResponse(res, 500, "Server error");
+    return sendResponse(res, 500, false, "Server error");
   }
 };
 
@@ -1101,25 +1140,33 @@ export const resumeSubscription = async (req, res) => {
 export const skipMeal = async (req, res) => {
   try {
     const { id } = req.params;
-    const { date, mealWindow } = req.body;
+    const { date, mealWindow, reason } = req.body;
     const userId = req.user._id;
 
     const subscription = await Subscription.findById(id);
     if (!subscription) {
-      return sendResponse(res, 404, "Subscription not found");
+      return sendResponse(res, 404, false, "Subscription not found");
     }
 
     // Verify ownership (unless admin)
     if (req.user.role !== "ADMIN" && subscription.userId.toString() !== userId.toString()) {
-      return sendResponse(res, 403, "Access denied");
+      return sendResponse(res, 403, false, "Access denied");
     }
 
     if (subscription.status !== "ACTIVE") {
-      return sendResponse(res, 400, "Can only skip meals for active subscriptions");
+      return sendResponse(res, 400, false, "Can only skip meals for active subscriptions");
+    }
+
+    // Validate date is not in the past
+    const skipDate = new Date(date);
+    skipDate.setHours(0, 0, 0, 0);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (skipDate < today) {
+      return sendResponse(res, 400, false, "Cannot skip meals in the past");
     }
 
     // Check if already skipped
-    const skipDate = new Date(date);
     const dateStr = skipDate.toISOString().split("T")[0];
     const alreadySkipped = subscription.skippedSlots?.some((slot) => {
       const slotDateStr = new Date(slot.date).toISOString().split("T")[0];
@@ -1127,25 +1174,83 @@ export const skipMeal = async (req, res) => {
     });
 
     if (alreadySkipped) {
-      return sendResponse(res, 400, "This meal is already skipped");
+      return sendResponse(res, 400, false, "This meal is already skipped");
     }
 
     // Add to skipped slots
     if (!subscription.skippedSlots) {
       subscription.skippedSlots = [];
     }
-    subscription.skippedSlots.push({ date: skipDate, mealWindow });
+    subscription.skippedSlots.push({
+      date: skipDate,
+      mealWindow,
+      reason: reason || null,
+      skippedAt: new Date(),
+    });
     await subscription.save();
 
     console.log(`> Meal skipped for subscription ${id}: ${mealWindow} on ${dateStr}`);
 
-    return sendResponse(res, 200, "Meal skipped successfully", {
-      skippedSlot: { date: skipDate, mealWindow },
+    return sendResponse(res, 200, true, "Meal skipped successfully", {
+      skippedSlot: { date: skipDate, mealWindow, reason },
       totalSkippedSlots: subscription.skippedSlots.length,
     });
   } catch (error) {
     console.log("> Skip meal error:", error);
-    return sendResponse(res, 500, "Server error");
+    return sendResponse(res, 500, false, "Server error");
+  }
+};
+
+/**
+ * Unskip a meal (remove from skipped slots)
+ *
+ * POST /api/subscriptions/:id/unskip-meal
+ */
+export const unskipMeal = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { date, mealWindow } = req.body;
+    const userId = req.user._id;
+
+    const subscription = await Subscription.findById(id);
+    if (!subscription) {
+      return sendResponse(res, 404, false, "Subscription not found");
+    }
+
+    // Verify ownership (unless admin)
+    if (req.user.role !== "ADMIN" && subscription.userId.toString() !== userId.toString()) {
+      return sendResponse(res, 403, false, "Access denied");
+    }
+
+    if (subscription.status !== "ACTIVE") {
+      return sendResponse(res, 400, false, "Can only modify meals for active subscriptions");
+    }
+
+    // Find and remove the skipped slot
+    const skipDate = new Date(date);
+    const dateStr = skipDate.toISOString().split("T")[0];
+    const originalLength = subscription.skippedSlots?.length || 0;
+
+    subscription.skippedSlots = (subscription.skippedSlots || []).filter((slot) => {
+      const slotDateStr = new Date(slot.date).toISOString().split("T")[0];
+      return !(slotDateStr === dateStr && slot.mealWindow === mealWindow);
+    });
+
+    if (subscription.skippedSlots.length === originalLength) {
+      return sendResponse(res, 404, false, "This meal slot was not skipped");
+    }
+
+    await subscription.save();
+
+    console.log(`> Meal unskipped for subscription ${id}: ${mealWindow} on ${dateStr}`);
+
+    return sendResponse(res, 200, true, "Meal unskipped successfully", {
+      unskippedSlot: { date: skipDate, mealWindow },
+      totalSkippedSlots: subscription.skippedSlots.length,
+    });
+  } catch (error) {
+    console.log("> Unskip meal error:", error);
+    return sendResponse(res, 500, false, "Server error");
   }
 };
 
@@ -1229,5 +1334,6 @@ export default {
   pauseSubscription,
   resumeSubscription,
   skipMeal,
+  unskipMeal,
   triggerAutoOrders,
 };

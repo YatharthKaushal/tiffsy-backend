@@ -128,12 +128,10 @@ export const triggerAutoOrdersSchema = Joi.object({
  * Update auto-order settings
  */
 export const updateAutoOrderSettingsSchema = Joi.object({
-  autoOrderEnabled: Joi.boolean(),
-  preferredKitchenId: Joi.string().hex().length(24).allow(null),
-  preferredMealWindows: Joi.array()
-    .items(Joi.string().valid("LUNCH", "DINNER"))
-    .min(1),
-  deliveryAddressId: Joi.string().hex().length(24).allow(null),
+  autoOrderingEnabled: Joi.boolean(),
+  defaultMealType: Joi.string().valid("LUNCH", "DINNER", "BOTH"),
+  defaultKitchenId: Joi.string().hex().length(24).allow(null),
+  defaultAddressId: Joi.string().hex().length(24).allow(null),
 }).min(1);
 
 /**
@@ -148,8 +146,8 @@ export const pauseSubscriptionSchema = Joi.object({
  * Skip meal
  */
 export const skipMealSchema = Joi.object({
-  mealDate: Joi.date().required().messages({
-    "any.required": "Meal date is required",
+  date: Joi.date().required().messages({
+    "any.required": "Date is required",
   }),
   mealWindow: Joi.string()
     .valid("LUNCH", "DINNER")
@@ -157,7 +155,22 @@ export const skipMealSchema = Joi.object({
     .messages({
       "any.required": "Meal window is required",
     }),
-  skipReason: Joi.string().max(500).trim().allow("", null),
+  reason: Joi.string().max(200).trim().allow("", null),
+});
+
+/**
+ * Unskip meal (remove from skipped slots)
+ */
+export const unskipMealSchema = Joi.object({
+  date: Joi.date().required().messages({
+    "any.required": "Date is required",
+  }),
+  mealWindow: Joi.string()
+    .valid("LUNCH", "DINNER")
+    .required()
+    .messages({
+      "any.required": "Meal window is required",
+    }),
 });
 
 export default {
@@ -172,4 +185,5 @@ export default {
   updateAutoOrderSettingsSchema,
   pauseSubscriptionSchema,
   skipMealSchema,
+  unskipMealSchema,
 };

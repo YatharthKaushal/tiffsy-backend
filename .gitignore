@@ -1,9 +1,18 @@
-.claude
+# Dependencies
 node_modules
 node_module
-docs
-docs/api
+
+# Environment & secrets
 .env
 secrets
 serviceAccountKey.json
-scripts
+
+# Claude Code
+.claude
+
+# API docs (auto-generated)
+docs/api
+docs/api.zip
+
+# Scripts (if contains sensitive data)
+# scripts

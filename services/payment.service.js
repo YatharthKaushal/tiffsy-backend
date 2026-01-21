@@ -62,10 +62,19 @@ export async function createPaymentOrder({
   const expiresAt = new Date();
   expiresAt.setMinutes(expiresAt.getMinutes() + ORDER_EXPIRY_MINUTES);
 
+  // Map purchaseType to model name for Mongoose refPath
+  const purchaseTypeModelMap = {
+    ORDER: "Order",
+    SUBSCRIPTION: "Subscription",
+    WALLET_RECHARGE: "WalletRecharge",
+    FUTURE_PRODUCT: "FutureProduct",
+  };
+
   // Create payment transaction record
   const paymentTransaction = new PaymentTransaction({
     razorpayOrderId: razorpayOrder.id,
     purchaseType,
+    purchaseTypeModel: purchaseTypeModelMap[purchaseType],
     referenceId,
     userId,
     amount: razorpayOrder.amount,

@@ -24,9 +24,9 @@ const seed = async () => {
     await mongoose.connect(process.env.MONGODB_URL);
     console.log("> MongoDB Connected");
 
-    // ========================================
+    // ===
     // 1. Create Admin User
-    // ========================================
+    // ===
     console.log("\n> Creating Admin User...");
 
     const existingAdmin = await User.findOne({ username: "admin" });
@@ -52,9 +52,9 @@ const seed = async () => {
       console.log("  Password: admin123");
     }
 
-    // ========================================
+    // ===
     // 2. Create Zone
-    // ========================================
+    // ===
     console.log("\n> Creating Zone...");
 
     const existingZone = await Zone.findOne({ pincode: "110001" });
@@ -77,9 +77,9 @@ const seed = async () => {
       console.log("  Zone created: Connaught Place (110001)");
     }
 
-    // ========================================
+    // ===
     // 3. Create Kitchen
-    // ========================================
+    // ===
     console.log("\n> Creating Kitchen...");
 
     const existingKitchen = await Kitchen.findOne({ code: "KIT-TIFSY" });
@@ -141,9 +141,9 @@ const seed = async () => {
       console.log("  Kitchen created: Tiffsy Central Kitchen");
     }
 
-    // ========================================
+    // ===
     // 4. Create Addons
-    // ========================================
+    // ===
     console.log("\n> Creating Addons...");
 
     const addonsData = [
@@ -217,9 +217,9 @@ const seed = async () => {
 
     const addonIds = addons.map((a) => a._id);
 
-    // ========================================
+    // ===
     // 5. Create Menu Items
-    // ========================================
+    // ===
     console.log("\n> Creating Menu Items...");
 
     // Check for existing menu items
@@ -366,9 +366,9 @@ const seed = async () => {
       console.log("  Created 3 On-Demand Menu items");
     }
 
-    // ========================================
+    // ===
     // 6. Create 7-Day Subscription Plan
-    // ========================================
+    // ===
     console.log("\n> Creating 7-Day Subscription Plan...");
 
     const existingPlan = await SubscriptionPlan.findOne({
@@ -411,16 +411,20 @@ const seed = async () => {
       console.log("  Created: Weekly Meal Plan");
       console.log(`    - Duration: 7 days`);
       console.log(`    - Total Vouchers: ${plan.totalVouchers}`);
-      console.log(`    - Price: ₹${plan.price} (Original: ₹${plan.originalPrice})`);
-      console.log(`    - Voucher can be used for: LUNCH or DINNER (no restrictions)`);
+      console.log(
+        `    - Price: ₹${plan.price} (Original: ₹${plan.originalPrice})`,
+      );
+      console.log(
+        `    - Voucher can be used for: LUNCH or DINNER (no restrictions)`,
+      );
     }
 
-    // ========================================
+    // ===
     // Summary
-    // ========================================
-    console.log("\n========================================");
+    // ===
+    console.log("\n===");
     console.log("SEED COMPLETED SUCCESSFULLY!");
-    console.log("========================================");
+    console.log("===");
     console.log("\nAdmin Login Credentials:");
     console.log("  Username: admin");
     console.log("  Password: admin123");

@@ -8,7 +8,19 @@ const createApp = () => {
 
   // Core Middleware
   app.use(cors());
-  app.use(express.json());
+
+  // IMPORTANT: Skip express.json() for webhook routes to preserve raw body
+  // Razorpay webhooks require the raw body for signature verification
+  app.use((req, res, next) => {
+    if (req.originalUrl === "/api/payment/webhook") {
+      // Skip JSON parsing for webhook - let express.raw() handle it in the route
+      console.log("[MIDDLEWARE] Skipping JSON parsing for webhook route");
+      next();
+    } else {
+      express.json()(req, res, next);
+    }
+  });
+
   app.use(express.urlencoded({ extended: true }));
 
   // Request logging middleware (logs all HTTP requests)

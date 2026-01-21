@@ -1,6 +1,6 @@
-====================================================================================
+
 FRONTEND IMPLEMENTATION PROMPT - Kitchen Approval & Dashboard System
-====================================================================================
+
 
 Hi! I need you to implement the Kitchen Approval and Dashboard system in our React Native app.
 
@@ -14,9 +14,9 @@ The backend is FULLY IMPLEMENTED and ready. I'm attaching the complete integrati
 
 READ THE ATTACHED DOCUMENT: FRONTEND_INTEGRATION_GUIDE.md
 
-====================================================================================
+
 KEY POINTS TO UNDERSTAND:
-====================================================================================
+
 
 1. SAME APP, DIFFERENT DASHBOARDS
    - Admin users (role: ADMIN) see Admin Dashboard with Kitchen Approvals sidebar item
@@ -95,9 +95,9 @@ KEY POINTS TO UNDERSTAND:
    - All API calls need Authorization: Bearer <jwt_token>
    - Handle 401 errors (logout user)
 
-====================================================================================
+
 IMPLEMENTATION STEPS:
-====================================================================================
+
 
 STEP 1: Read the FRONTEND_INTEGRATION_GUIDE.md completely
 
@@ -128,9 +128,9 @@ STEP 6: Test thoroughly:
    - Resubmit flow works end-to-end
    - Dashboard loads all stats correctly
 
-====================================================================================
+
 QUESTIONS TO ASK ME:
-====================================================================================
+
 
 Before you start, ask me:
 
@@ -141,9 +141,9 @@ Before you start, ask me:
 5. Do you have any existing design system or component library?
 6. What icon library are you using (react-native-vector-icons, expo-icons)?
 
-====================================================================================
+
 IMPORTANT NOTES:
-====================================================================================
+
 
 ✅ Backend is 100% complete and tested
 ✅ All API endpoints are working
@@ -153,9 +153,9 @@ IMPORTANT NOTES:
 ✅ Focus on UI/UX polish and error handling
 ✅ Use the exact API response structures shown in the guide
 
-====================================================================================
+
 START IMPLEMENTATION:
-====================================================================================
+
 
 After reading the guide and asking clarification questions, start implementing in this order:
 
@@ -167,4 +167,4 @@ After reading the guide and asking clarification questions, start implementing i
 
 Good luck! The guide has everything you need. Let me know if you have questions!
 
-====================================================================================
+

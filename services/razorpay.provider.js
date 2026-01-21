@@ -80,25 +80,38 @@ export function verifyPaymentSignature({ razorpayOrderId, razorpayPaymentId, raz
  * @returns {boolean} Whether webhook signature is valid
  */
 export function verifyWebhookSignature(body, signature) {
+  console.log("[RAZORPAY PROVIDER] verifyWebhookSignature called");
+  console.log("  - body type:", typeof body);
+  console.log("  - body length:", body?.length || 0);
+  console.log("  - signature:", signature?.substring(0, 20) + "...");
+
   const webhookSecret = getRazorpayWebhookSecret();
 
   if (!webhookSecret) {
-    console.log("> Razorpay: Webhook secret not configured");
+    console.log("[RAZORPAY PROVIDER] ERROR: Webhook secret not configured");
+    console.log("[RAZORPAY PROVIDER] Check RAZORPAY_WEBHOOK_SECRET env variable");
     return false;
   }
+
+  console.log("[RAZORPAY PROVIDER] Webhook secret configured (length:", webhookSecret.length, ")");
 
   const expectedSignature = crypto
     .createHmac("sha256", webhookSecret)
     .update(body)
     .digest("hex");
 
+  console.log("[RAZORPAY PROVIDER] Expected signature:", expectedSignature.substring(0, 20) + "...");
+  console.log("[RAZORPAY PROVIDER] Received signature:", signature?.substring(0, 20) + "...");
+
   try {
-    return crypto.timingSafeEqual(
+    const isValid = crypto.timingSafeEqual(
       Buffer.from(expectedSignature, "hex"),
       Buffer.from(signature, "hex")
     );
+    console.log("[RAZORPAY PROVIDER] Signature match:", isValid);
+    return isValid;
   } catch (error) {
-    console.log("> Razorpay: Webhook signature verification error:", error.message);
+    console.log("[RAZORPAY PROVIDER] ERROR: Signature verification exception:", error.message);
     return false;
   }
 }

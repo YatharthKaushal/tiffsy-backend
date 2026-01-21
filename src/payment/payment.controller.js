@@ -34,12 +34,22 @@ export async function initiateOrderPayment(req, res) {
 
     // Check if payment is already completed
     if (order.paymentStatus === "PAID") {
-      return sendResponse(res, 400, false, "Payment already completed for this order");
+      return sendResponse(
+        res,
+        400,
+        false,
+        "Payment already completed for this order",
+      );
     }
 
     // Check if amount to pay is zero (voucher-only order)
     if (order.amountPaid === 0 || order.paymentMethod === "VOUCHER_ONLY") {
-      return sendResponse(res, 400, false, "No payment required for this order");
+      return sendResponse(
+        res,
+        400,
+        false,
+        "No payment required for this order",
+      );
     }
 
     // Create payment order
@@ -54,8 +64,9 @@ export async function initiateOrderPayment(req, res) {
           .filter((i) => i.isMainCourse)
           .reduce((sum, i) => sum + i.totalPrice, 0),
         addonTotal: order.items.reduce(
-          (sum, i) => sum + i.addons.reduce((a, addon) => a + addon.totalPrice, 0),
-          0
+          (sum, i) =>
+            sum + i.addons.reduce((a, addon) => a + addon.totalPrice, 0),
+          0,
         ),
         deliveryFee: order.charges?.deliveryFee || 0,
         serviceFee: order.charges?.serviceFee || 0,
@@ -92,7 +103,12 @@ export async function initiateOrderPayment(req, res) {
     });
   } catch (error) {
     console.log("> initiateOrderPayment error:", error);
-    return sendResponse(res, 500, false, error.message || "Failed to create payment order");
+    return sendResponse(
+      res,
+      500,
+      false,
+      error.message || "Failed to create payment order",
+    );
   }
 }
 
@@ -114,7 +130,12 @@ export async function initiateSubscriptionPayment(req, res) {
 
     // Check if plan is purchasable
     if (!plan.isPurchasable()) {
-      return sendResponse(res, 400, false, "This plan is not available for purchase");
+      return sendResponse(
+        res,
+        400,
+        false,
+        "This plan is not available for purchase",
+      );
     }
 
     // Create payment order
@@ -150,7 +171,12 @@ export async function initiateSubscriptionPayment(req, res) {
     });
   } catch (error) {
     console.log("> initiateSubscriptionPayment error:", error);
-    return sendResponse(res, 500, false, error.message || "Failed to create payment order");
+    return sendResponse(
+      res,
+      500,
+      false,
+      error.message || "Failed to create payment order",
+    );
   }
 }
 
@@ -164,7 +190,8 @@ export async function verifyPayment(req, res) {
     const userId = req.user._id;
 
     // Find the transaction
-    const transaction = await PaymentTransaction.findByRazorpayOrderId(razorpayOrderId);
+    const transaction =
+      await PaymentTransaction.findByRazorpayOrderId(razorpayOrderId);
 
     if (!transaction) {
       return sendResponse(res, 404, false, "Payment transaction not found");
@@ -172,7 +199,12 @@ export async function verifyPayment(req, res) {
 
     // Verify ownership
     if (transaction.userId.toString() !== userId.toString()) {
-      return sendResponse(res, 403, false, "Unauthorized access to this payment");
+      return sendResponse(
+        res,
+        403,
+        false,
+        "Unauthorized access to this payment",
+      );
     }
 
     // Verify payment
@@ -191,7 +223,12 @@ export async function verifyPayment(req, res) {
     });
   } catch (error) {
     console.log("> verifyPayment error:", error);
-    return sendResponse(res, 400, false, error.message || "Payment verification failed");
+    return sendResponse(
+      res,
+      400,
+      false,
+      error.message || "Payment verification failed",
+    );
   }
 }
 
@@ -201,33 +238,101 @@ export async function verifyPayment(req, res) {
  * NOTE: This endpoint uses raw body parser for signature verification
  */
 export async function handleWebhook(req, res) {
+  const timestamp = new Date().toISOString();
+  console.log(`\n= RAZORPAY WEBHOOK [${timestamp}] =`);
+
   try {
     const signature = req.headers["x-razorpay-signature"];
 
     if (!signature) {
-      console.log("> Webhook: Missing signature header");
+      console.log("[WEBHOOK] ERROR: Missing x-razorpay-signature header");
+      console.log(
+        "[WEBHOOK] Headers received:",
+        JSON.stringify(req.headers, null, 2),
+      );
       return res.status(400).json({ error: "Missing signature" });
     }
 
-    // Get raw body (should be Buffer or string depending on middleware)
-    const rawBody = typeof req.body === "string" ? req.body : JSON.stringify(req.body);
+    console.log(
+      "[WEBHOOK] Signature received:",
+      signature.substring(0, 20) + "...",
+    );
+
+    // Get raw body - handle Buffer from express.raw()
+    let rawBody;
+    if (Buffer.isBuffer(req.body)) {
+      rawBody = req.body.toString("utf8");
+      console.log("[WEBHOOK] Body type: Buffer, converted to string");
+    } else if (typeof req.body === "string") {
+      rawBody = req.body;
+      console.log("[WEBHOOK] Body type: String");
+    } else {
+      // If body was already parsed (shouldn't happen with express.raw)
+      rawBody = JSON.stringify(req.body);
+      console.log("[WEBHOOK] Body type: Object (unexpected), stringified");
+    }
+
+    console.log("[WEBHOOK] Body length:", rawBody.length, "chars");
 
     // Verify webhook signature
     const isValid = razorpayProvider.verifyWebhookSignature(rawBody, signature);
 
     if (!isValid) {
-      console.log("> Webhook: Invalid signature");
+      console.log("[WEBHOOK] ERROR: Signature verification FAILED");
+      console.log("[WEBHOOK] This could mean:");
+      console.log("  - RAZORPAY_WEBHOOK_SECRET env var is incorrect");
+      console.log("  - Body was modified/re-encoded before verification");
+      console.log("  - Signature header was tampered with");
       return res.status(400).json({ error: "Invalid signature" });
     }
 
-    // Parse payload
-    const payload = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
-    const event = payload.event;
+    console.log("[WEBHOOK] Signature verification: PASSED");
 
-    console.log(`> Webhook received: ${event}`);
+    // Parse payload
+    const payload = JSON.parse(rawBody);
+    const event = payload.event;
+    const paymentEntity = payload.payload?.payment?.entity;
+    const orderEntity = payload.payload?.order?.entity;
+    const refundEntity = payload.payload?.refund?.entity;
+
+    console.log("[WEBHOOK] Event type:", event);
+
+    if (paymentEntity) {
+      console.log("[WEBHOOK] Payment details:");
+      console.log("  - payment_id:", paymentEntity.id);
+      console.log("  - order_id:", paymentEntity.order_id);
+      console.log("  - status:", paymentEntity.status);
+      console.log("  - amount:", paymentEntity.amount / 100, "INR");
+      console.log("  - method:", paymentEntity.method);
+    }
+
+    if (orderEntity) {
+      console.log("[WEBHOOK] Order details:");
+      console.log("  - order_id:", orderEntity.id);
+      console.log("  - status:", orderEntity.status);
+      console.log("  - amount:", orderEntity.amount / 100, "INR");
+    }
+
+    if (refundEntity) {
+      console.log("[WEBHOOK] Refund details:");
+      console.log("  - refund_id:", refundEntity.id);
+      console.log("  - payment_id:", refundEntity.payment_id);
+      console.log("  - amount:", refundEntity.amount / 100, "INR");
+      console.log("  - status:", refundEntity.status);
+    }
 
     // Process webhook event
-    const result = await paymentService.handleWebhookEvent(event, payload.payload);
+    console.log("[WEBHOOK] Processing event...");
+    const result = await paymentService.handleWebhookEvent(
+      event,
+      payload.payload,
+    );
+
+    console.log(
+      "[WEBHOOK] Processing result:",
+      JSON.stringify(result, null, 2),
+    );
+    console.log(`= WEBHOOK COMPLETE [${event}] =\n`);
 
     // Always respond 200 to acknowledge receipt
     return res.status(200).json({
@@ -236,7 +341,10 @@ export async function handleWebhook(req, res) {
       handled: result.handled,
     });
   } catch (error) {
-    console.log("> Webhook error:", error);
+    console.log("[WEBHOOK] ERROR:", error.message);
+    console.log("[WEBHOOK] Stack:", error.stack);
+    console.log(`= WEBHOOK ERROR =\n`);
+
     // Still return 200 to prevent Razorpay retries for our errors
     return res.status(200).json({
       received: true,
@@ -262,13 +370,23 @@ export async function getPaymentStatus(req, res) {
       status.userId.toString() !== userId.toString() &&
       req.user.role !== "ADMIN"
     ) {
-      return sendResponse(res, 403, false, "Unauthorized access to this payment");
+      return sendResponse(
+        res,
+        403,
+        false,
+        "Unauthorized access to this payment",
+      );
     }
 
     return sendResponse(res, 200, true, "Payment status retrieved", status);
   } catch (error) {
     console.log("> getPaymentStatus error:", error);
-    return sendResponse(res, 400, false, error.message || "Failed to get payment status");
+    return sendResponse(
+      res,
+      400,
+      false,
+      error.message || "Failed to get payment status",
+    );
   }
 }
 
@@ -299,11 +417,20 @@ export async function retryPayment(req, res) {
     }
 
     if (order.status === "CANCELLED" || order.status === "REJECTED") {
-      return sendResponse(res, 400, false, "Cannot retry payment for cancelled/rejected order");
+      return sendResponse(
+        res,
+        400,
+        false,
+        "Cannot retry payment for cancelled/rejected order",
+      );
     }
 
     // Create new payment order
-    const paymentOrder = await paymentService.retryPayment("ORDER", orderId, userId);
+    const paymentOrder = await paymentService.retryPayment(
+      "ORDER",
+      orderId,
+      userId,
+    );
 
     // Update order with new Razorpay order ID
     order.paymentDetails = order.paymentDetails || {};
@@ -320,7 +447,12 @@ export async function retryPayment(req, res) {
     });
   } catch (error) {
     console.log("> retryPayment error:", error);
-    return sendResponse(res, 500, false, error.message || "Failed to create retry payment");
+    return sendResponse(
+      res,
+      500,
+      false,
+      error.message || "Failed to create retry payment",
+    );
   }
 }
 
@@ -370,7 +502,7 @@ export async function getPaymentConfig(req, res) {
   }
 }
 
-// ============ ADMIN ENDPOINTS ============
+//  ADMIN ENDPOINTS
 
 /**
  * Get all transactions (admin)
@@ -378,7 +510,8 @@ export async function getPaymentConfig(req, res) {
  */
 export async function adminGetTransactions(req, res) {
   try {
-    const { status, purchaseType, userId, startDate, endDate, limit, skip } = req.query;
+    const { status, purchaseType, userId, startDate, endDate, limit, skip } =
+      req.query;
 
     const query = {};
 
@@ -453,7 +586,12 @@ export async function adminInitiateRefund(req, res) {
     return sendResponse(res, 200, true, "Refund initiated", result);
   } catch (error) {
     console.log("> adminInitiateRefund error:", error);
-    return sendResponse(res, 500, false, error.message || "Failed to initiate refund");
+    return sendResponse(
+      res,
+      500,
+      false,
+      error.message || "Failed to initiate refund",
+    );
   }
 }
 
@@ -536,10 +674,21 @@ export async function adminGetStats(req, res) {
 export async function adminCleanupExpired(req, res) {
   try {
     const result = await paymentService.markExpiredTransactions();
-    return sendResponse(res, 200, true, "Expired transactions cleaned up", result);
+    return sendResponse(
+      res,
+      200,
+      true,
+      "Expired transactions cleaned up",
+      result,
+    );
   } catch (error) {
     console.log("> adminCleanupExpired error:", error);
-    return sendResponse(res, 500, false, "Failed to cleanup expired transactions");
+    return sendResponse(
+      res,
+      500,
+      false,
+      "Failed to cleanup expired transactions",
+    );
   }
 }
 

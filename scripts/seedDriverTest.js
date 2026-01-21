@@ -40,9 +40,9 @@ const seedDriverTest = async () => {
     await mongoose.connect(process.env.MONGODB_URL);
     console.log("> MongoDB Connected\n");
 
-    // ========================================
+    // ===
     // 1. CREATE ZONE (if not exists)
-    // ========================================
+    // ===
     console.log("=== CREATING ZONE ===");
 
     let zone = await Zone.findOne({ pincode: "110001" });
@@ -61,9 +61,9 @@ const seedDriverTest = async () => {
       console.log("  Zone exists: Connaught Place (110001)");
     }
 
-    // ========================================
+    // ===
     // 2. CREATE ADMIN (if not exists)
-    // ========================================
+    // ===
     console.log("\n=== CREATING ADMIN ===");
 
     let admin = await User.findOne({ username: "admin" });
@@ -83,9 +83,9 @@ const seedDriverTest = async () => {
       console.log("  Admin exists");
     }
 
-    // ========================================
+    // ===
     // 3. CREATE KITCHEN & KITCHEN STAFF
-    // ========================================
+    // ===
     console.log("\n=== CREATING KITCHEN ===");
 
     let kitchen = await Kitchen.findOne({ code: "KIT-TEST" });
@@ -139,9 +139,9 @@ const seedDriverTest = async () => {
       console.log("  Kitchen staff exists");
     }
 
-    // ========================================
+    // ===
     // 4. USE EXISTING DRIVER
-    // ========================================
+    // ===
     console.log("\n=== USING EXISTING DRIVER ===");
 
     const driver = await User.findById(EXISTING_DRIVER_ID);
@@ -151,20 +151,43 @@ const seedDriverTest = async () => {
       process.exit(1);
     }
     console.log(`  Using driver: ${driver.phone} (${driver.name})`);
-    console.log(`  Status: ${driver.status}, Approval: ${driver.approvalStatus}`);
+    console.log(
+      `  Status: ${driver.status}, Approval: ${driver.approvalStatus}`,
+    );
 
-    // ========================================
+    // ===
     // 5. CREATE MENU ITEMS & ADDONS
-    // ========================================
+    // ===
     console.log("\n=== CREATING MENU ITEMS ===");
 
     // Addons
     let addons = await Addon.find({ kitchenId: kitchen._id });
     if (addons.length === 0) {
       addons = await Addon.insertMany([
-        { kitchenId: kitchen._id, name: "Raita", price: 30, dietaryType: "VEG", isAvailable: true, status: "ACTIVE" },
-        { kitchenId: kitchen._id, name: "Papad", price: 20, dietaryType: "VEG", isAvailable: true, status: "ACTIVE" },
-        { kitchenId: kitchen._id, name: "Sweet Lassi", price: 40, dietaryType: "VEG", isAvailable: true, status: "ACTIVE" },
+        {
+          kitchenId: kitchen._id,
+          name: "Raita",
+          price: 30,
+          dietaryType: "VEG",
+          isAvailable: true,
+          status: "ACTIVE",
+        },
+        {
+          kitchenId: kitchen._id,
+          name: "Papad",
+          price: 20,
+          dietaryType: "VEG",
+          isAvailable: true,
+          status: "ACTIVE",
+        },
+        {
+          kitchenId: kitchen._id,
+          name: "Sweet Lassi",
+          price: 40,
+          dietaryType: "VEG",
+          isAvailable: true,
+          status: "ACTIVE",
+        },
       ]);
       console.log("  Created 3 addons");
     } else {
@@ -172,7 +195,11 @@ const seedDriverTest = async () => {
     }
 
     // Menu Items
-    let lunchThali = await MenuItem.findOne({ kitchenId: kitchen._id, mealWindow: "LUNCH", menuType: "MEAL_MENU" });
+    let lunchThali = await MenuItem.findOne({
+      kitchenId: kitchen._id,
+      mealWindow: "LUNCH",
+      menuType: "MEAL_MENU",
+    });
     if (!lunchThali) {
       lunchThali = await MenuItem.create({
         kitchenId: kitchen._id,
@@ -183,7 +210,7 @@ const seedDriverTest = async () => {
         mealWindow: "LUNCH",
         price: 150,
         dietaryType: "VEG",
-        addonIds: addons.map(a => a._id),
+        addonIds: addons.map((a) => a._id),
         isAvailable: true,
         status: "ACTIVE",
         createdBy: admin._id,
@@ -191,7 +218,11 @@ const seedDriverTest = async () => {
       console.log("  Created: Lunch Special Thali");
     }
 
-    let dinnerThali = await MenuItem.findOne({ kitchenId: kitchen._id, mealWindow: "DINNER", menuType: "MEAL_MENU" });
+    let dinnerThali = await MenuItem.findOne({
+      kitchenId: kitchen._id,
+      mealWindow: "DINNER",
+      menuType: "MEAL_MENU",
+    });
     if (!dinnerThali) {
       dinnerThali = await MenuItem.create({
         kitchenId: kitchen._id,
@@ -202,7 +233,7 @@ const seedDriverTest = async () => {
         mealWindow: "DINNER",
         price: 180,
         dietaryType: "VEG",
-        addonIds: addons.map(a => a._id),
+        addonIds: addons.map((a) => a._id),
         isAvailable: true,
         status: "ACTIVE",
         createdBy: admin._id,
@@ -210,9 +241,9 @@ const seedDriverTest = async () => {
       console.log("  Created: Dinner Deluxe Thali");
     }
 
-    // ========================================
+    // ===
     // 6. CREATE CUSTOMERS WITH ADDRESSES
-    // ========================================
+    // ===
     console.log("\n=== CREATING CUSTOMERS ===");
 
     const customers = [];
@@ -252,8 +283,8 @@ const seedDriverTest = async () => {
           contactName: `Test Customer ${i}`,
           contactPhone: phone,
           coordinates: {
-            latitude: 28.6315 + (i * 0.001),
-            longitude: 77.2167 + (i * 0.001),
+            latitude: 28.6315 + i * 0.001,
+            longitude: 77.2167 + i * 0.001,
           },
         });
       }
@@ -261,9 +292,9 @@ const seedDriverTest = async () => {
     }
     console.log(`  Total customers: ${customers.length}`);
 
-    // ========================================
+    // ===
     // 7. DELETE EXISTING TEST ORDERS (fresh start)
-    // ========================================
+    // ===
     console.log("\n=== CLEANING UP OLD TEST ORDERS ===");
 
     const deletedOrders = await Order.deleteMany({
@@ -276,22 +307,54 @@ const seedDriverTest = async () => {
     });
     console.log(`  Deleted ${deletedBatches.deletedCount} old test batches`);
 
-    // ========================================
+    // ===
     // 8. CREATE ORDERS IN ALL STATES
-    // ========================================
+    // ===
     console.log("\n=== CREATING ORDERS IN ALL STATES ===");
 
     const orderStates = [
-      { status: "PLACED", count: 3, description: "New orders waiting for kitchen" },
-      { status: "ACCEPTED", count: 2, description: "Accepted, not yet preparing" },
-      { status: "PREPARING", count: 3, description: "Being prepared in kitchen" },
+      {
+        status: "PLACED",
+        count: 3,
+        description: "New orders waiting for kitchen",
+      },
+      {
+        status: "ACCEPTED",
+        count: 2,
+        description: "Accepted, not yet preparing",
+      },
+      {
+        status: "PREPARING",
+        count: 3,
+        description: "Being prepared in kitchen",
+      },
       { status: "READY", count: 4, description: "Ready for driver pickup" },
-      { status: "PICKED_UP", count: 2, description: "Picked up by driver", needsDriver: true },
-      { status: "OUT_FOR_DELIVERY", count: 3, description: "Driver on the way", needsDriver: true },
-      { status: "DELIVERED", count: 2, description: "Successfully delivered", needsDriver: true },
+      {
+        status: "PICKED_UP",
+        count: 2,
+        description: "Picked up by driver",
+        needsDriver: true,
+      },
+      {
+        status: "OUT_FOR_DELIVERY",
+        count: 3,
+        description: "Driver on the way",
+        needsDriver: true,
+      },
+      {
+        status: "DELIVERED",
+        count: 2,
+        description: "Successfully delivered",
+        needsDriver: true,
+      },
       { status: "CANCELLED", count: 1, description: "Cancelled by customer" },
       { status: "REJECTED", count: 1, description: "Rejected by kitchen" },
-      { status: "FAILED", count: 1, description: "Delivery failed", needsDriver: true },
+      {
+        status: "FAILED",
+        count: 1,
+        description: "Delivery failed",
+        needsDriver: true,
+      },
     ];
 
     const createdOrders = [];
@@ -299,7 +362,9 @@ const seedDriverTest = async () => {
     let orderCounter = 1;
 
     for (const stateConfig of orderStates) {
-      console.log(`\n  Creating ${stateConfig.count} orders with status: ${stateConfig.status}`);
+      console.log(
+        `\n  Creating ${stateConfig.count} orders with status: ${stateConfig.status}`,
+      );
       console.log(`    (${stateConfig.description})`);
 
       for (let i = 0; i < stateConfig.count; i++) {
@@ -336,15 +401,18 @@ const seedDriverTest = async () => {
               unitPrice: menuItem.price,
               totalPrice: menuItem.price,
               isMainCourse: true,
-              addons: i % 2 === 0 ? [
-                {
-                  addonId: addons[0]._id,
-                  name: addons[0].name,
-                  quantity: 1,
-                  unitPrice: addons[0].price,
-                  totalPrice: addons[0].price,
-                },
-              ] : [],
+              addons:
+                i % 2 === 0
+                  ? [
+                      {
+                        addonId: addons[0]._id,
+                        name: addons[0].name,
+                        quantity: 1,
+                        unitPrice: addons[0].price,
+                        totalPrice: addons[0].price,
+                      },
+                    ]
+                  : [],
             },
           ],
           subtotal: menuItem.price + (i % 2 === 0 ? addons[0].price : 0),
@@ -355,66 +423,156 @@ const seedDriverTest = async () => {
             taxAmount: 10,
           },
           grandTotal: menuItem.price + (i % 2 === 0 ? addons[0].price : 0) + 55,
-          voucherUsage: { voucherIds: [], voucherCount: 0, mainCoursesCovered: 0 },
+          voucherUsage: {
+            voucherIds: [],
+            voucherCount: 0,
+            mainCoursesCovered: 0,
+          },
           amountPaid: menuItem.price + (i % 2 === 0 ? addons[0].price : 0) + 55,
           paymentStatus: "PAID",
           paymentMethod: "UPI",
           status: "PLACED", // Will be updated below
           statusTimeline: [
-            { status: "PLACED", timestamp: new Date(Date.now() - 3600000), updatedBy: customer._id },
+            {
+              status: "PLACED",
+              timestamp: new Date(Date.now() - 3600000),
+              updatedBy: customer._id,
+            },
           ],
           placedAt: new Date(Date.now() - 3600000),
         });
 
         // Build status timeline and assign driver if needed
         const now = new Date();
-        const timeline = [{ status: "PLACED", timestamp: new Date(now - 3600000), updatedBy: customer._id }];
+        const timeline = [
+          {
+            status: "PLACED",
+            timestamp: new Date(now - 3600000),
+            updatedBy: customer._id,
+          },
+        ];
 
-        if (["ACCEPTED", "PREPARING", "READY", "PICKED_UP", "OUT_FOR_DELIVERY", "DELIVERED", "FAILED"].includes(stateConfig.status)) {
-          timeline.push({ status: "ACCEPTED", timestamp: new Date(now - 3000000), updatedBy: kitchenStaff._id });
+        if (
+          [
+            "ACCEPTED",
+            "PREPARING",
+            "READY",
+            "PICKED_UP",
+            "OUT_FOR_DELIVERY",
+            "DELIVERED",
+            "FAILED",
+          ].includes(stateConfig.status)
+        ) {
+          timeline.push({
+            status: "ACCEPTED",
+            timestamp: new Date(now - 3000000),
+            updatedBy: kitchenStaff._id,
+          });
           order.acceptedAt = new Date(now - 3000000);
         }
 
-        if (["PREPARING", "READY", "PICKED_UP", "OUT_FOR_DELIVERY", "DELIVERED", "FAILED"].includes(stateConfig.status)) {
-          timeline.push({ status: "PREPARING", timestamp: new Date(now - 2400000), updatedBy: kitchenStaff._id });
+        if (
+          [
+            "PREPARING",
+            "READY",
+            "PICKED_UP",
+            "OUT_FOR_DELIVERY",
+            "DELIVERED",
+            "FAILED",
+          ].includes(stateConfig.status)
+        ) {
+          timeline.push({
+            status: "PREPARING",
+            timestamp: new Date(now - 2400000),
+            updatedBy: kitchenStaff._id,
+          });
           order.preparingAt = new Date(now - 2400000);
         }
 
-        if (["READY", "PICKED_UP", "OUT_FOR_DELIVERY", "DELIVERED", "FAILED"].includes(stateConfig.status)) {
-          timeline.push({ status: "READY", timestamp: new Date(now - 1800000), updatedBy: kitchenStaff._id });
+        if (
+          [
+            "READY",
+            "PICKED_UP",
+            "OUT_FOR_DELIVERY",
+            "DELIVERED",
+            "FAILED",
+          ].includes(stateConfig.status)
+        ) {
+          timeline.push({
+            status: "READY",
+            timestamp: new Date(now - 1800000),
+            updatedBy: kitchenStaff._id,
+          });
           order.preparedAt = new Date(now - 1800000);
         }
 
-        if (["PICKED_UP", "OUT_FOR_DELIVERY", "DELIVERED", "FAILED"].includes(stateConfig.status)) {
+        if (
+          ["PICKED_UP", "OUT_FOR_DELIVERY", "DELIVERED", "FAILED"].includes(
+            stateConfig.status,
+          )
+        ) {
           order.driverId = driver._id;
-          timeline.push({ status: "PICKED_UP", timestamp: new Date(now - 1200000), updatedBy: driver._id });
+          timeline.push({
+            status: "PICKED_UP",
+            timestamp: new Date(now - 1200000),
+            updatedBy: driver._id,
+          });
           order.pickedUpAt = new Date(now - 1200000);
         }
 
-        if (["OUT_FOR_DELIVERY", "DELIVERED", "FAILED"].includes(stateConfig.status)) {
-          timeline.push({ status: "OUT_FOR_DELIVERY", timestamp: new Date(now - 600000), updatedBy: driver._id });
+        if (
+          ["OUT_FOR_DELIVERY", "DELIVERED", "FAILED"].includes(
+            stateConfig.status,
+          )
+        ) {
+          timeline.push({
+            status: "OUT_FOR_DELIVERY",
+            timestamp: new Date(now - 600000),
+            updatedBy: driver._id,
+          });
           order.outForDeliveryAt = new Date(now - 600000);
         }
 
         if (stateConfig.status === "DELIVERED") {
-          timeline.push({ status: "DELIVERED", timestamp: new Date(now - 300000), updatedBy: driver._id });
+          timeline.push({
+            status: "DELIVERED",
+            timestamp: new Date(now - 300000),
+            updatedBy: driver._id,
+          });
           order.deliveredAt = new Date(now - 300000);
-          order.proofOfDelivery = { type: "OTP", value: "1234", verifiedAt: new Date(now - 300000) };
+          order.proofOfDelivery = {
+            type: "OTP",
+            value: "1234",
+            verifiedAt: new Date(now - 300000),
+          };
         }
 
         if (stateConfig.status === "FAILED") {
-          timeline.push({ status: "FAILED", timestamp: new Date(now - 300000), updatedBy: driver._id, notes: "Customer not available" });
+          timeline.push({
+            status: "FAILED",
+            timestamp: new Date(now - 300000),
+            updatedBy: driver._id,
+            notes: "Customer not available",
+          });
         }
 
         if (stateConfig.status === "CANCELLED") {
-          timeline.push({ status: "CANCELLED", timestamp: new Date(now - 1800000), updatedBy: customer._id });
+          timeline.push({
+            status: "CANCELLED",
+            timestamp: new Date(now - 1800000),
+            updatedBy: customer._id,
+          });
           order.cancelledAt = new Date(now - 1800000);
           order.cancellationReason = "Customer requested cancellation";
           order.cancelledBy = "CUSTOMER";
         }
 
         if (stateConfig.status === "REJECTED") {
-          timeline.push({ status: "REJECTED", timestamp: new Date(now - 3000000), updatedBy: kitchenStaff._id });
+          timeline.push({
+            status: "REJECTED",
+            timestamp: new Date(now - 3000000),
+            updatedBy: kitchenStaff._id,
+          });
           order.rejectedAt = new Date(now - 3000000);
           order.rejectionReason = "Items not available";
         }
@@ -429,15 +587,19 @@ const seedDriverTest = async () => {
       }
     }
 
-    // ========================================
+    // ===
     // 9. CREATE DELIVERY BATCHES
-    // ========================================
+    // ===
     console.log("\n=== CREATING DELIVERY BATCHES ===");
 
     // Get READY orders for batching
-    const readyOrders = createdOrders.filter(o => o.status === "READY");
-    const outForDeliveryOrders = createdOrders.filter(o => o.status === "OUT_FOR_DELIVERY");
-    const deliveredOrders = createdOrders.filter(o => o.status === "DELIVERED");
+    const readyOrders = createdOrders.filter((o) => o.status === "READY");
+    const outForDeliveryOrders = createdOrders.filter(
+      (o) => o.status === "OUT_FOR_DELIVERY",
+    );
+    const deliveredOrders = createdOrders.filter(
+      (o) => o.status === "DELIVERED",
+    );
 
     // Batch 1: READY_FOR_DISPATCH (waiting for driver to accept)
     if (readyOrders.length >= 2) {
@@ -449,19 +611,21 @@ const seedDriverTest = async () => {
         menuType: "MEAL_MENU",
         mealWindow: "LUNCH",
         batchDate: new Date(),
-        orderIds: batch1Orders.map(o => o._id),
+        orderIds: batch1Orders.map((o) => o._id),
         status: "READY_FOR_DISPATCH",
         windowEndTime: new Date(Date.now() + 3600000),
         creationType: "AUTO",
         maxBatchSize: 15,
         createdBy: admin._id,
       });
-      console.log(`  Created batch: ${batch1.batchNumber} (READY_FOR_DISPATCH) - ${batch1Orders.length} orders`);
+      console.log(
+        `  Created batch: ${batch1.batchNumber} (READY_FOR_DISPATCH) - ${batch1Orders.length} orders`,
+      );
 
       // Update orders with batchId
       await Order.updateMany(
-        { _id: { $in: batch1Orders.map(o => o._id) } },
-        { batchId: batch1._id }
+        { _id: { $in: batch1Orders.map((o) => o._id) } },
+        { batchId: batch1._id },
       );
     }
 
@@ -475,7 +639,7 @@ const seedDriverTest = async () => {
         menuType: "MEAL_MENU",
         mealWindow: "LUNCH",
         batchDate: new Date(),
-        orderIds: batch2Orders.map(o => o._id),
+        orderIds: batch2Orders.map((o) => o._id),
         driverId: driver._id,
         driverAssignedAt: new Date(Date.now() - 1200000),
         status: "IN_PROGRESS",
@@ -491,12 +655,14 @@ const seedDriverTest = async () => {
         maxBatchSize: 15,
         createdBy: admin._id,
       });
-      console.log(`  Created batch: ${batch2.batchNumber} (IN_PROGRESS) - assigned to ${driver.name}`);
+      console.log(
+        `  Created batch: ${batch2.batchNumber} (IN_PROGRESS) - assigned to ${driver.name}`,
+      );
 
       // Update orders with batchId
       await Order.updateMany(
-        { _id: { $in: batch2Orders.map(o => o._id) } },
-        { batchId: batch2._id }
+        { _id: { $in: batch2Orders.map((o) => o._id) } },
+        { batchId: batch2._id },
       );
     }
 
@@ -510,7 +676,7 @@ const seedDriverTest = async () => {
         menuType: "MEAL_MENU",
         mealWindow: "DINNER",
         batchDate: new Date(Date.now() - 86400000), // Yesterday
-        orderIds: batch3Orders.map(o => o._id),
+        orderIds: batch3Orders.map((o) => o._id),
         driverId: driver._id,
         driverAssignedAt: new Date(Date.now() - 90000000),
         status: "COMPLETED",
@@ -541,18 +707,22 @@ const seedDriverTest = async () => {
       maxBatchSize: 15,
       createdBy: admin._id,
     });
-    console.log(`  Created batch: ${collectingBatch.batchNumber} (COLLECTING) - empty, waiting for orders`);
+    console.log(
+      `  Created batch: ${collectingBatch.batchNumber} (COLLECTING) - empty, waiting for orders`,
+    );
 
-    // ========================================
+    // ===
     // SUMMARY
-    // ========================================
-    console.log("\n========================================");
+    // ===
+    console.log("\n===");
     console.log("DRIVER TEST SEED COMPLETED!");
-    console.log("========================================\n");
+    console.log("===\n");
 
     console.log("USERS:");
     console.log("  Admin:         admin / admin123");
-    console.log(`  Driver:        ${EXISTING_DRIVER_PHONE} (${EXISTING_DRIVER_NAME}) - EXISTING ACCOUNT`);
+    console.log(
+      `  Driver:        ${EXISTING_DRIVER_PHONE} (${EXISTING_DRIVER_NAME}) - EXISTING ACCOUNT`,
+    );
     console.log("  Kitchen Staff: 9800000001 (Kitchen Manager)");
     console.log("  Customers:     9800000101 - 9800000110 (10 customers)\n");
 
@@ -575,20 +745,30 @@ const seedDriverTest = async () => {
     console.log("  COMPLETED:         1 batch (done)\n");
 
     console.log("DRIVER APP TEST FLOWS:");
-    console.log(`  1. Login with phone: ${EXISTING_DRIVER_PHONE} (already logged in)`);
+    console.log(
+      `  1. Login with phone: ${EXISTING_DRIVER_PHONE} (already logged in)`,
+    );
     console.log("  2. View available batches (READY_FOR_DISPATCH)");
     console.log("  3. Accept a batch");
     console.log("  4. View assigned orders");
-    console.log("  5. Update order status: PICKED_UP -> OUT_FOR_DELIVERY -> DELIVERED");
+    console.log(
+      "  5. Update order status: PICKED_UP -> OUT_FOR_DELIVERY -> DELIVERED",
+    );
     console.log("  6. Complete delivery with OTP proof");
     console.log("  7. View delivery history\n");
 
     console.log("API ENDPOINTS FOR DRIVER:");
     console.log("  GET  /api/orders/driver          - Get assigned orders");
     console.log("  GET  /api/orders/:id             - Get order details");
-    console.log("  PATCH /api/orders/:id/delivery-status - Update delivery status");
-    console.log("     Body: { status: 'PICKED_UP' | 'OUT_FOR_DELIVERY' | 'DELIVERED' | 'FAILED' }");
-    console.log("     For DELIVERED: { status: 'DELIVERED', proofOfDelivery: { type: 'OTP', value: '1234' } }\n");
+    console.log(
+      "  PATCH /api/orders/:id/delivery-status - Update delivery status",
+    );
+    console.log(
+      "     Body: { status: 'PICKED_UP' | 'OUT_FOR_DELIVERY' | 'DELIVERED' | 'FAILED' }",
+    );
+    console.log(
+      "     For DELIVERED: { status: 'DELIVERED', proofOfDelivery: { type: 'OTP', value: '1234' } }\n",
+    );
 
     await mongoose.disconnect();
     console.log("> MongoDB Disconnected");

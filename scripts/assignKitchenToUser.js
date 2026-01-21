@@ -53,22 +53,22 @@ const assignKitchen = async () => {
     await user.save();
 
     console.log("  ✅ Kitchen assigned successfully!");
-    console.log("\n========================================");
+    console.log("\n===");
     console.log("USER DETAILS:");
-    console.log("========================================");
+    console.log("===");
     console.log(`Name: ${user.name}`);
     console.log(`Phone: ${user.phone}`);
     console.log(`Role: ${user.role}`);
     console.log(`Status: ${user.status}`);
     console.log(`Kitchen ID: ${user.kitchenId}`);
-    console.log("\n========================================");
+    console.log("\n===");
     console.log("KITCHEN DETAILS:");
-    console.log("========================================");
+    console.log("===");
     console.log(`Name: ${kitchen.name}`);
     console.log(`Code: ${kitchen.code}`);
     console.log(`Type: ${kitchen.type}`);
     console.log(`Status: ${kitchen.status}`);
-    console.log("========================================\n");
+    console.log("===\n");
     console.log("✅ User is now ready to login as kitchen staff!");
 
     process.exit(0);

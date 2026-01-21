@@ -115,15 +115,29 @@ export async function createPaymentOrder({
  * @returns {Promise<Object>} Verification result
  */
 export async function verifyPayment({ razorpayOrderId, razorpayPaymentId, razorpaySignature }) {
+  console.log("\n[PAYMENT SERVICE] verifyPayment called");
+  console.log("  - razorpayOrderId:", razorpayOrderId);
+  console.log("  - razorpayPaymentId:", razorpayPaymentId);
+  console.log("  - razorpaySignature:", razorpaySignature?.substring(0, 20) + "...");
+
   // Find payment transaction
   const transaction = await PaymentTransaction.findByRazorpayOrderId(razorpayOrderId);
 
   if (!transaction) {
+    console.log("[PAYMENT SERVICE] ERROR: Transaction not found for order:", razorpayOrderId);
     throw new Error(`Payment transaction not found for order: ${razorpayOrderId}`);
   }
 
+  console.log("[PAYMENT SERVICE] Transaction found:");
+  console.log("  - _id:", transaction._id);
+  console.log("  - purchaseType:", transaction.purchaseType);
+  console.log("  - referenceId:", transaction.referenceId);
+  console.log("  - current status:", transaction.status);
+  console.log("  - amountRupees:", transaction.amountRupees);
+
   // Check if already processed
   if (transaction.status === "CAPTURED") {
+    console.log("[PAYMENT SERVICE] Transaction already CAPTURED, returning success");
     return {
       success: true,
       alreadyProcessed: true,
@@ -133,10 +147,12 @@ export async function verifyPayment({ razorpayOrderId, razorpayPaymentId, razorp
 
   // Check if expired
   if (transaction.status === "EXPIRED") {
+    console.log("[PAYMENT SERVICE] ERROR: Transaction EXPIRED");
     throw new Error("Payment order has expired");
   }
 
   // Verify signature
+  console.log("[PAYMENT SERVICE] Verifying payment signature...");
   const isValid = razorpayProvider.verifyPaymentSignature({
     razorpayOrderId,
     razorpayPaymentId,
@@ -144,15 +160,22 @@ export async function verifyPayment({ razorpayOrderId, razorpayPaymentId, razorp
   });
 
   if (!isValid) {
+    console.log("[PAYMENT SERVICE] ERROR: Signature verification FAILED");
     await transaction.markFailed("Signature verification failed", "INVALID_SIGNATURE", null);
     throw new Error("Payment signature verification failed");
   }
 
+  console.log("[PAYMENT SERVICE] Signature verification: PASSED");
+
   // Fetch payment details from Razorpay
+  console.log("[PAYMENT SERVICE] Fetching payment details from Razorpay...");
   const payment = await razorpayProvider.fetchPayment(razorpayPaymentId);
+  console.log("[PAYMENT SERVICE] Razorpay payment status:", payment.status);
+  console.log("[PAYMENT SERVICE] Razorpay payment method:", payment.method);
 
   // Verify payment status
   if (payment.status !== "captured" && payment.status !== "authorized") {
+    console.log("[PAYMENT SERVICE] ERROR: Unexpected payment status:", payment.status);
     await transaction.markFailed(
       `Unexpected payment status: ${payment.status}`,
       payment.errorCode,
@@ -162,14 +185,18 @@ export async function verifyPayment({ razorpayOrderId, razorpayPaymentId, razorp
   }
 
   // Update transaction
+  console.log("[PAYMENT SERVICE] Marking transaction as CAPTURED...");
   transaction.razorpayPaymentId = razorpayPaymentId;
   transaction.razorpaySignature = razorpaySignature;
   await transaction.markCaptured(razorpayPaymentId, payment);
+  console.log("[PAYMENT SERVICE] Transaction marked CAPTURED");
 
   // Update the purchase entity
+  console.log("[PAYMENT SERVICE] Calling updatePurchaseEntity...");
   await updatePurchaseEntity(transaction, payment);
+  console.log("[PAYMENT SERVICE] updatePurchaseEntity completed");
 
-  console.log(`> Payment verified: ${razorpayPaymentId} for ${transaction.purchaseType}`);
+  console.log(`[PAYMENT SERVICE] Payment verified successfully: ${razorpayPaymentId} for ${transaction.purchaseType}`);
 
   return {
     success: true,
@@ -184,7 +211,15 @@ export async function verifyPayment({ razorpayOrderId, razorpayPaymentId, razorp
  * @param {Object} payment - Razorpay payment details
  */
 async function updatePurchaseEntity(transaction, payment) {
+  console.log("[PAYMENT SERVICE] updatePurchaseEntity called");
+  console.log("  - purchaseType:", transaction.purchaseType);
+  console.log("  - referenceId:", transaction.referenceId);
+  console.log("  - razorpayPaymentId:", transaction.razorpayPaymentId);
+  console.log("  - payment.method:", payment.method);
+
   const paymentMethod = razorpayProvider.mapPaymentMethod(payment.method);
+  console.log("  - mappedPaymentMethod:", paymentMethod);
+
   const paymentDetails = {
     razorpayOrderId: transaction.razorpayOrderId,
     razorpayPaymentId: transaction.razorpayPaymentId,
@@ -196,21 +231,51 @@ async function updatePurchaseEntity(transaction, payment) {
   };
 
   if (transaction.purchaseType === "ORDER") {
-    await Order.findByIdAndUpdate(transaction.referenceId, {
+    console.log("[PAYMENT SERVICE] Updating Order to PAID status...");
+
+    const updateData = {
       paymentStatus: "PAID",
       paymentId: transaction.razorpayPaymentId,
       paymentMethod,
       paymentDetails,
       amountPaid: transaction.amountRupees,
-    });
-    console.log(`> Order ${transaction.referenceId} marked as PAID`);
+    };
+    console.log("[PAYMENT SERVICE] Update data:", JSON.stringify(updateData, null, 2));
+
+    const updatedOrder = await Order.findByIdAndUpdate(
+      transaction.referenceId,
+      updateData,
+      { new: true }
+    );
+
+    if (updatedOrder) {
+      console.log("[PAYMENT SERVICE] Order updated successfully:");
+      console.log("  - orderNumber:", updatedOrder.orderNumber);
+      console.log("  - paymentStatus:", updatedOrder.paymentStatus);
+      console.log("  - paymentMethod:", updatedOrder.paymentMethod);
+    } else {
+      console.log("[PAYMENT SERVICE] WARNING: Order not found for update:", transaction.referenceId);
+    }
   } else if (transaction.purchaseType === "SUBSCRIPTION") {
-    await Subscription.findByIdAndUpdate(transaction.referenceId, {
-      paymentId: transaction.razorpayPaymentId,
-      paymentMethod,
-      paymentDetails,
-    });
-    console.log(`> Subscription ${transaction.referenceId} payment recorded`);
+    console.log("[PAYMENT SERVICE] Updating Subscription payment details...");
+
+    const updatedSubscription = await Subscription.findByIdAndUpdate(
+      transaction.referenceId,
+      {
+        paymentId: transaction.razorpayPaymentId,
+        paymentMethod,
+        paymentDetails,
+      },
+      { new: true }
+    );
+
+    if (updatedSubscription) {
+      console.log("[PAYMENT SERVICE] Subscription updated successfully");
+    } else {
+      console.log("[PAYMENT SERVICE] WARNING: Subscription not found:", transaction.referenceId);
+    }
+  } else {
+    console.log("[PAYMENT SERVICE] Unknown purchaseType:", transaction.purchaseType);
   }
 }
 
@@ -290,32 +355,40 @@ export async function processRefund({
  * @returns {Promise<Object>} Processing result
  */
 export async function handleWebhookEvent(event, payload) {
-  console.log(`> Processing webhook event: ${event}`);
+  console.log(`[PAYMENT SERVICE] handleWebhookEvent: ${event}`);
+  console.log(`[PAYMENT SERVICE] payload keys:`, Object.keys(payload || {}));
 
   switch (event) {
     case "payment.authorized":
+      console.log("[PAYMENT SERVICE] Routing to handlePaymentAuthorized");
       return handlePaymentAuthorized(payload.payment?.entity);
 
     case "payment.captured":
+      console.log("[PAYMENT SERVICE] Routing to handlePaymentCaptured");
       return handlePaymentCaptured(payload.payment?.entity);
 
     case "payment.failed":
+      console.log("[PAYMENT SERVICE] Routing to handlePaymentFailed");
       return handlePaymentFailed(payload.payment?.entity);
 
     case "refund.created":
+      console.log("[PAYMENT SERVICE] Routing to handleRefundCreated");
       return handleRefundCreated(payload.refund?.entity);
 
     case "refund.processed":
+      console.log("[PAYMENT SERVICE] Routing to handleRefundProcessed");
       return handleRefundProcessed(payload.refund?.entity);
 
     case "refund.failed":
+      console.log("[PAYMENT SERVICE] Routing to handleRefundFailed");
       return handleRefundFailed(payload.refund?.entity);
 
     case "order.paid":
+      console.log("[PAYMENT SERVICE] Routing to handleOrderPaid");
       return handleOrderPaid(payload.order?.entity);
 
     default:
-      console.log(`> Unhandled webhook event: ${event}`);
+      console.log(`[PAYMENT SERVICE] Unhandled webhook event: ${event}`);
       return { handled: false, event };
   }
 }
@@ -350,19 +423,39 @@ async function handlePaymentAuthorized(payment) {
  * This is the primary success webhook
  */
 async function handlePaymentCaptured(payment) {
-  if (!payment) return { handled: false, reason: "No payment entity" };
+  console.log("[WEBHOOK HANDLER] handlePaymentCaptured called");
+
+  if (!payment) {
+    console.log("[WEBHOOK HANDLER] ERROR: No payment entity in payload");
+    return { handled: false, reason: "No payment entity" };
+  }
+
+  console.log("[WEBHOOK HANDLER] Looking for transaction with order_id:", payment.order_id);
 
   const transaction = await PaymentTransaction.findByRazorpayOrderId(payment.order_id);
   if (!transaction) {
-    console.log(`> Transaction not found for order: ${payment.order_id}`);
+    console.log(`[WEBHOOK HANDLER] ERROR: Transaction not found for order: ${payment.order_id}`);
+    console.log("[WEBHOOK HANDLER] This means the Razorpay order was not created by our system");
     return { handled: false, reason: "Transaction not found" };
   }
 
+  console.log("[WEBHOOK HANDLER] Transaction found:");
+  console.log("  - _id:", transaction._id);
+  console.log("  - purchaseType:", transaction.purchaseType);
+  console.log("  - referenceId:", transaction.referenceId);
+  console.log("  - current status:", transaction.status);
+
   await transaction.addWebhookEvent("payment.captured", payment);
+  console.log("[WEBHOOK HANDLER] Webhook event recorded in transaction");
 
   // If not already captured (client verification might have done it)
   if (transaction.status !== "CAPTURED") {
+    console.log("[WEBHOOK HANDLER] Transaction not yet CAPTURED, updating...");
+
     await transaction.markCaptured(payment.id, payment);
+    console.log("[WEBHOOK HANDLER] Transaction marked as CAPTURED");
+
+    console.log("[WEBHOOK HANDLER] Calling updatePurchaseEntity...");
     await updatePurchaseEntity(transaction, {
       method: payment.method,
       bank: payment.bank,
@@ -370,8 +463,12 @@ async function handlePaymentCaptured(payment) {
       vpa: payment.vpa,
       card: payment.card,
     });
+    console.log("[WEBHOOK HANDLER] updatePurchaseEntity completed");
+  } else {
+    console.log("[WEBHOOK HANDLER] Transaction already CAPTURED (by verify endpoint), skipping update");
   }
 
+  console.log("[WEBHOOK HANDLER] handlePaymentCaptured completed successfully");
   return { handled: true, transactionId: transaction._id };
 }
 

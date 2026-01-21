@@ -3,6 +3,8 @@ import Order from "../../schema/order.schema.js";
 import Voucher from "../../schema/voucher.schema.js";
 import { sendResponse } from "../../utils/response.utils.js";
 import { safeAuditCreate } from "../../utils/audit.utils.js";
+import paymentService from "../../services/payment.service.js";
+import razorpayProvider from "../../services/razorpay.provider.js";
 
 /**
  * 
@@ -31,31 +33,77 @@ function generateRefundNumber() {
 }
 
 /**
- * Call payment gateway refund API (mock implementation)
- * @param {string} originalPaymentId - Original payment ID
- * @param {number} amount - Refund amount
- * @returns {Promise<{success: boolean, gatewayRefundId: string|null, error: string|null}>}
+ * Call payment gateway refund API (Razorpay implementation)
+ * @param {string} originalPaymentId - Original Razorpay payment ID (pay_xxx)
+ * @param {number} amount - Refund amount in rupees
+ * @param {Object} refundRecord - Refund document (optional, for tracking)
+ * @returns {Promise<{success: boolean, gatewayRefundId: string|null, error: string|null, isVoucherOnly: boolean}>}
  */
-async function callPaymentGatewayRefund(originalPaymentId, amount) {
-  // Mock implementation - in production, integrate with RazorPay/Stripe
-  // Simulate API call delay
-  await new Promise((resolve) => setTimeout(resolve, 100));
-
-  // Simulate 95% success rate
-  const isSuccess = Math.random() > 0.05;
-
-  if (isSuccess) {
-    const gatewayRefundId = `rfnd_${Date.now()}_${Math.random()
-      .toString(36)
-      .substring(2, 8)}`;
-    return { success: true, gatewayRefundId, error: null };
+async function callPaymentGatewayRefund(originalPaymentId, amount, refundRecord = null) {
+  // Skip if voucher-only order (no actual payment was made)
+  if (
+    !originalPaymentId ||
+    originalPaymentId === "VOUCHER_ONLY" ||
+    originalPaymentId === "N/A"
+  ) {
+    console.log("> Refund: Voucher-only order, no gateway refund needed");
+    return {
+      success: true,
+      gatewayRefundId: null,
+      error: null,
+      isVoucherOnly: true,
+    };
   }
 
-  return {
-    success: false,
-    gatewayRefundId: null,
-    error: "Gateway error: Transaction failed",
-  };
+  // Check if Razorpay is configured
+  if (!razorpayProvider.isAvailable()) {
+    // In dev mode without Razorpay, simulate success
+    if (process.env.NODE_ENV !== "production") {
+      console.log("> Refund: Dev mode - simulating refund success");
+      const mockRefundId = `mock_rfnd_${Date.now()}`;
+      return {
+        success: true,
+        gatewayRefundId: mockRefundId,
+        error: null,
+        isVoucherOnly: false,
+      };
+    }
+    return {
+      success: false,
+      gatewayRefundId: null,
+      error: "Payment gateway not configured",
+      isVoucherOnly: false,
+    };
+  }
+
+  try {
+    // Process refund via Razorpay
+    const result = await paymentService.processRefund({
+      paymentId: originalPaymentId,
+      amount,
+      reason: refundRecord?.reason || "Order refund",
+      refundRecordId: refundRecord?._id,
+      speed: "normal",
+    });
+
+    console.log(`> Refund: Razorpay refund created - ${result.refundId}`);
+
+    return {
+      success: true,
+      gatewayRefundId: result.refundId,
+      error: null,
+      isVoucherOnly: false,
+      gatewayResponse: result.response,
+    };
+  } catch (error) {
+    console.log(`> Refund: Razorpay error - ${error.message}`);
+    return {
+      success: false,
+      gatewayRefundId: null,
+      error: error.message,
+      isVoucherOnly: false,
+    };
+  }
 }
 
 /**

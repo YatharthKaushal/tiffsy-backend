@@ -1,8 +1,11 @@
 import SubscriptionPlan from "../../schema/subscriptionPlan.schema.js";
 import Subscription from "../../schema/subscription.schema.js";
 import Voucher from "../../schema/voucher.schema.js";
+import PaymentTransaction from "../../schema/paymentTransaction.schema.js";
 import { sendResponse } from "../../utils/response.utils.js";
 import { safeAuditLog } from "../../utils/audit.utils.js";
+import paymentService from "../../services/payment.service.js";
+import razorpayProvider from "../../services/razorpay.provider.js";
 
 /**
  * Subscription Controller
@@ -480,30 +483,91 @@ export const getActivePlans = async (req, res) => {
  * Purchase subscription
  *
  * POST /api/subscriptions/purchase
+ *
+ * This endpoint requires payment verification via Razorpay.
+ * Client must first initiate payment via /api/payment/subscription/initiate,
+ * complete Razorpay checkout, then call this endpoint with the payment details.
  */
 export const purchaseSubscription = async (req, res) => {
   try {
-    const { planId, paymentId, paymentMethod } = req.body;
+    const {
+      planId,
+      razorpayOrderId,
+      razorpayPaymentId,
+      razorpaySignature,
+      // Legacy support for dev/testing (when Razorpay is not configured)
+      paymentId,
+      paymentMethod,
+    } = req.body;
     const userId = req.user._id;
     const now = new Date();
 
     // Fetch plan
     const plan = await SubscriptionPlan.findById(planId);
     if (!plan) {
-      return sendResponse(res, 404, "Plan not found");
+      return sendResponse(res, 404, false, "Plan not found");
     }
 
     // Verify plan is active and valid
     if (plan.status !== "ACTIVE") {
-      return sendResponse(res, 400, "Plan is not available for purchase");
+      return sendResponse(res, 400, false, "Plan is not available for purchase");
     }
 
     if (plan.validFrom && plan.validFrom > now) {
-      return sendResponse(res, 400, "Plan is not yet available");
+      return sendResponse(res, 400, false, "Plan is not yet available");
     }
 
     if (plan.validTill && plan.validTill < now) {
-      return sendResponse(res, 400, "Plan has expired");
+      return sendResponse(res, 400, false, "Plan has expired");
+    }
+
+    // Determine if Razorpay payment verification is required
+    const isDevMode = process.env.NODE_ENV !== "production";
+    const razorpayConfigured = razorpayProvider.isAvailable();
+    let verifiedPaymentId = paymentId;
+    let verifiedPaymentMethod = paymentMethod || "OTHER";
+    let paymentDetails = null;
+
+    // In production with Razorpay configured, require payment verification
+    if (razorpayConfigured && razorpayOrderId && razorpayPaymentId && razorpaySignature) {
+      // Verify Razorpay payment
+      try {
+        const verificationResult = await paymentService.verifyPayment({
+          razorpayOrderId,
+          razorpayPaymentId,
+          razorpaySignature,
+        });
+
+        if (!verificationResult.success) {
+          return sendResponse(res, 400, false, "Payment verification failed");
+        }
+
+        verifiedPaymentId = razorpayPaymentId;
+        verifiedPaymentMethod = razorpayProvider.mapPaymentMethod(
+          verificationResult.payment?.method || "other"
+        );
+        paymentDetails = {
+          razorpayOrderId,
+          razorpayPaymentId,
+          method: verificationResult.payment?.method,
+        };
+
+        console.log(`> Payment verified for subscription: ${razorpayPaymentId}`);
+      } catch (verifyError) {
+        console.log("> Subscription payment verification error:", verifyError);
+        return sendResponse(res, 400, false, verifyError.message || "Payment verification failed");
+      }
+    } else if (!isDevMode && razorpayConfigured) {
+      // Production mode with Razorpay but no payment details provided
+      return sendResponse(
+        res,
+        400,
+        false,
+        "Payment verification required. Please provide razorpayOrderId, razorpayPaymentId, and razorpaySignature"
+      );
+    } else if (isDevMode) {
+      // Dev mode - allow purchase without real payment
+      console.log("> Dev mode: Skipping payment verification for subscription");
     }
 
     // Allow users to purchase multiple subscriptions (same or different plans)
@@ -537,11 +601,23 @@ export const purchaseSubscription = async (req, res) => {
       voucherExpiryDate,
       status: "ACTIVE",
       amountPaid: plan.price,
-      paymentId,
-      paymentMethod,
+      paymentId: verifiedPaymentId,
+      paymentMethod: verifiedPaymentMethod,
+      paymentDetails,
     });
 
     await subscription.save();
+
+    // Update payment transaction with subscription reference if Razorpay was used
+    if (razorpayOrderId) {
+      await PaymentTransaction.findOneAndUpdate(
+        { razorpayOrderId },
+        {
+          referenceId: subscription._id,
+          purchaseType: "SUBSCRIPTION",
+        }
+      );
+    }
 
     // Issue vouchers
     const voucherResult = await issueVouchers(
@@ -555,14 +631,14 @@ export const purchaseSubscription = async (req, res) => {
       `> Subscription purchased: ${plan.name} by user ${req.user.phone}`
     );
 
-    return sendResponse(res, 201, "Subscription purchased successfully", {
+    return sendResponse(res, 201, true, "Subscription purchased successfully", {
       subscription,
       vouchersIssued: voucherResult.issued,
       voucherExpiryDate,
     });
   } catch (error) {
     console.log("> Purchase subscription error:", error);
-    return sendResponse(res, 500, "Server error");
+    return sendResponse(res, 500, false, "Server error");
   }
 };
 

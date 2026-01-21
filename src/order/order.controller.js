@@ -168,6 +168,13 @@ async function validateOrderItems(items, kitchenId, menuType, mealWindow) {
 /**
  * Calculate order pricing
  * Uses DB-persisted fees config
+ *
+ * VOUCHER RULES (when vouchers are used):
+ * - Delivery fee: WAIVED (no charge)
+ * - Service fee, packaging fee: COVERED by voucher
+ * - Tax on main course: COVERED by voucher
+ * - Addons + tax on addons: ALWAYS PAID by customer
+ *
  * @param {Array} items - Validated items
  * @param {number} voucherCount - Number of vouchers to use
  * @param {Object|null} couponDiscount - Coupon discount info
@@ -178,25 +185,32 @@ function calculateOrderPricing(items, voucherCount, couponDiscount, menuType) {
   // Get fees from config service
   const fees = getFeesConfig();
 
-  // Calculate items subtotal
-  let subtotal = 0;
+  // Separate main courses and addons for proper voucher calculation
+  let mainCoursesTotal = 0;
   let mainCoursesCount = 0;
-  let mainCoursesValue = 0;
+  let addonsTotal = 0;
 
   for (const item of items) {
-    subtotal += item.totalPrice;
-    const addonsTotal = item.addons.reduce((sum, a) => sum + a.totalPrice, 0);
-    subtotal += addonsTotal;
-
     if (item.isMainCourse) {
       mainCoursesCount += item.quantity;
-      mainCoursesValue += item.totalPrice;
+      mainCoursesTotal += item.totalPrice;
     }
+    // Sum all addons (always paid by customer)
+    const itemAddonsTotal = item.addons.reduce((sum, a) => sum + a.totalPrice, 0);
+    addonsTotal += itemAddonsTotal;
   }
 
-  // Calculate charges using DB-persisted fees
+  const subtotal = mainCoursesTotal + addonsTotal;
+
+  // Check if vouchers are being used
+  const hasVouchers = menuType === "MEAL_MENU" && voucherCount > 0;
+  const mainCoursesCovered = hasVouchers ? Math.min(voucherCount, mainCoursesCount) : 0;
+  const uncoveredMainCourses = mainCoursesCount - mainCoursesCovered;
+  const avgMainCoursePrice = mainCoursesCount > 0 ? mainCoursesTotal / mainCoursesCount : 0;
+
+  // Calculate charges based on voucher usage
   const charges = {
-    deliveryFee: fees.deliveryFee,
+    deliveryFee: hasVouchers ? 0 : fees.deliveryFee, // WAIVED when voucher used
     serviceFee: fees.serviceFee,
     packagingFee: fees.packagingFee,
     handlingFee: fees.handlingFee,
@@ -204,8 +218,19 @@ function calculateOrderPricing(items, voucherCount, couponDiscount, menuType) {
     taxBreakdown: [],
   };
 
-  // Calculate tax on subtotal + charges (excluding delivery)
-  const taxableAmount = subtotal + charges.serviceFee + charges.packagingFee;
+  // TAX CALCULATION
+  // When vouchers are used: tax only on addons + uncovered main courses
+  // When no vouchers: full tax on subtotal + service + packaging
+  let taxableAmount = 0;
+  if (hasVouchers) {
+    // Tax only on: addons + uncovered main courses (no tax on service/packaging as voucher covers it)
+    const uncoveredMainCourseValue = uncoveredMainCourses * avgMainCoursePrice;
+    taxableAmount = addonsTotal + uncoveredMainCourseValue;
+  } else {
+    // Full tax on everything (excluding delivery)
+    taxableAmount = subtotal + charges.serviceFee + charges.packagingFee;
+  }
+
   charges.taxAmount = Math.round(taxableAmount * fees.taxRate * 100) / 100;
   charges.taxBreakdown.push({
     taxType: "GST",
@@ -213,16 +238,14 @@ function calculateOrderPricing(items, voucherCount, couponDiscount, menuType) {
     amount: charges.taxAmount,
   });
 
-  // Calculate voucher coverage (MEAL_MENU only)
-  let voucherCoverage = 0;
-  let mainCoursesCovered = 0;
-  if (menuType === "MEAL_MENU" && voucherCount > 0) {
-    // Each voucher covers one main course
-    mainCoursesCovered = Math.min(voucherCount, mainCoursesCount);
-    // Calculate average price per main course
-    const avgMainCoursePrice =
-      mainCoursesCount > 0 ? mainCoursesValue / mainCoursesCount : 0;
-    voucherCoverage = avgMainCoursePrice * mainCoursesCovered;
+  // VOUCHER COVERAGE CALCULATION
+  // Voucher covers: main course price + service fee + packaging fee + tax on covered main course
+  let voucherCoverageValue = 0;
+  if (hasVouchers) {
+    const coveredMainCourseValue = mainCoursesCovered * avgMainCoursePrice;
+    const coveredMainCourseTax = Math.round(coveredMainCourseValue * fees.taxRate * 100) / 100;
+    // Voucher covers: main courses + service fee + packaging fee + tax on covered main courses
+    voucherCoverageValue = coveredMainCourseValue + charges.serviceFee + charges.packagingFee + coveredMainCourseTax;
   }
 
   // Calculate coupon discount (ON_DEMAND_MENU only)
@@ -235,7 +258,7 @@ function calculateOrderPricing(items, voucherCount, couponDiscount, menuType) {
     }
   }
 
-  // Calculate grand total
+  // Calculate totals
   const totalCharges =
     charges.deliveryFee +
     charges.serviceFee +
@@ -243,10 +266,28 @@ function calculateOrderPricing(items, voucherCount, couponDiscount, menuType) {
     charges.handlingFee +
     charges.taxAmount;
   const grandTotal = subtotal + totalCharges - discountAmount;
-  const amountToPay = Math.max(0, grandTotal - voucherCoverage);
+
+  // AMOUNT TO PAY
+  // When vouchers are used: customer pays only for addons + tax on addons + uncovered items
+  // When no vouchers: customer pays full amount
+  let amountToPay;
+  if (hasVouchers) {
+    // Pay for: addons + tax on addons + uncovered main courses + tax on uncovered
+    const uncoveredMainCourseValue = uncoveredMainCourses * avgMainCoursePrice;
+    const addonsTax = Math.round(addonsTotal * fees.taxRate * 100) / 100;
+    const uncoveredTax = Math.round(uncoveredMainCourseValue * fees.taxRate * 100) / 100;
+    amountToPay = addonsTotal + addonsTax + uncoveredMainCourseValue + uncoveredTax;
+  } else {
+    amountToPay = grandTotal;
+  }
+
+  // Ensure non-negative
+  amountToPay = Math.max(0, Math.round(amountToPay * 100) / 100);
 
   return {
     subtotal,
+    mainCoursesTotal,
+    addonsTotal,
     charges,
     discount: couponDiscount
       ? {
@@ -258,10 +299,16 @@ function calculateOrderPricing(items, voucherCount, couponDiscount, menuType) {
     voucherCoverage: {
       voucherCount,
       mainCoursesCovered,
-      value: voucherCoverage,
+      uncoveredMainCourses,
+      value: voucherCoverageValue,
+      coversDelivery: hasVouchers,
+      coversServiceFee: hasVouchers,
+      coversPackagingFee: hasVouchers,
+      coversTaxOnMainCourse: hasVouchers,
     },
     grandTotal,
     amountToPay,
+    requiresPayment: amountToPay > 0,
   };
 }
 

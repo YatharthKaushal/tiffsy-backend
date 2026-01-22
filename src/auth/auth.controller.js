@@ -448,9 +448,9 @@ export const getCurrentUser = async (req, res) => {
 export const updateFcmToken = async (req, res) => {
   try {
     const { fcmToken, deviceId, deviceType } = req.body;
-    const user = req.user;
+    const userId = req.user._id;
 
-    if (!user) {
+    if (!userId) {
       return sendResponse(res, 401, "User not found");
     }
 
@@ -459,35 +459,46 @@ export const updateFcmToken = async (req, res) => {
       return sendResponse(res, 400, "Invalid device type. Must be ANDROID, IOS, or WEB");
     }
 
-    // Initialize array if not exists
-    if (!user.fcmTokens) {
-      user.fcmTokens = [];
-    }
-
-    // Remove existing token with same deviceId if provided
+    // Use atomic operations to avoid version conflicts from concurrent requests
+    // First, remove any existing tokens with same token string or deviceId
+    const pullQuery = { $or: [{ "fcmTokens.token": fcmToken }] };
     if (deviceId) {
-      user.fcmTokens = user.fcmTokens.filter((t) => t.deviceId !== deviceId);
+      pullQuery.$or.push({ "fcmTokens.deviceId": deviceId });
     }
 
-    // Remove duplicate token if exists
-    user.fcmTokens = user.fcmTokens.filter((t) => t.token !== fcmToken);
+    await User.updateOne(
+      { _id: userId },
+      { $pull: { fcmTokens: pullQuery } }
+    );
 
-    // Add new token with device type
-    user.fcmTokens.push({
+    // Then add the new token
+    const newToken = {
       token: fcmToken,
       deviceType: deviceType,
       deviceId: deviceId || undefined,
       registeredAt: new Date(),
-    });
+    };
 
-    // Limit to max 5 devices
-    if (user.fcmTokens.length > 5) {
-      user.fcmTokens = user.fcmTokens.slice(-5);
+    await User.updateOne(
+      { _id: userId },
+      { $push: { fcmTokens: newToken } }
+    );
+
+    // Limit to max 5 devices by removing oldest tokens if needed
+    const user = await User.findById(userId);
+    if (user && user.fcmTokens && user.fcmTokens.length > 5) {
+      const tokensToRemove = user.fcmTokens
+        .sort((a, b) => a.registeredAt - b.registeredAt)
+        .slice(0, user.fcmTokens.length - 5)
+        .map((t) => t.token);
+
+      await User.updateOne(
+        { _id: userId },
+        { $pull: { fcmTokens: { token: { $in: tokensToRemove } } } }
+      );
     }
 
-    await user.save();
-
-    console.log("> FCM token registered:", { userId: user._id, deviceType });
+    console.log("> FCM token registered:", { userId, deviceType });
 
     return sendResponse(res, 200, "FCM token registered");
   } catch (error) {
@@ -507,9 +518,9 @@ export const removeFcmToken = async (req, res) => {
   try {
     // Accept token from body OR query params (frontend might send either way)
     const fcmToken = req.body?.fcmToken || req.query?.fcmToken;
-    const user = req.user;
+    const userId = req.user._id;
 
-    if (!user) {
+    if (!userId) {
       return sendResponse(res, 401, "User not found");
     }
 
@@ -517,19 +528,18 @@ export const removeFcmToken = async (req, res) => {
       return sendResponse(res, 400, "FCM token is required");
     }
 
-    if (user.fcmTokens) {
-      const beforeCount = user.fcmTokens.length;
-      user.fcmTokens = user.fcmTokens.filter((t) => t.token !== fcmToken);
-      const afterCount = user.fcmTokens.length;
+    // Use atomic operation to remove the token
+    const result = await User.updateOne(
+      { _id: userId },
+      { $pull: { fcmTokens: { token: fcmToken } } }
+    );
 
-      if (beforeCount === afterCount) {
-        console.log("> FCM token not found in user's tokens:", { userId: user._id });
-        return sendResponse(res, 404, "FCM token not found");
-      }
-
-      await user.save();
-      console.log("> FCM token removed:", { userId: user._id, tokensRemaining: afterCount });
+    if (result.modifiedCount === 0) {
+      console.log("> FCM token not found in user's tokens:", { userId });
+      return sendResponse(res, 404, "FCM token not found");
     }
+
+    console.log("> FCM token removed:", { userId });
 
     return sendResponse(res, 200, "FCM token removed");
   } catch (error) {

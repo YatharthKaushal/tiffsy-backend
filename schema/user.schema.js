@@ -97,31 +97,28 @@ const userSchema = new mongoose.Schema(
       type: Date,
     },
 
-    fcmTokens: {
-      type: [
-        {
-          token: {
-            type: String,
-            required: true,
-            trim: true,
-          },
-          deviceType: {
-            type: String,
-            enum: ["ANDROID", "IOS", "WEB"],
-            required: true,
-          },
-          deviceId: {
-            type: String,
-            trim: true,
-          },
-          registeredAt: {
-            type: Date,
-            default: Date.now,
-          },
+    fcmTokens: [
+      {
+        token: {
+          type: String,
+          required: true,
+          trim: true,
         },
-      ],
-      default: [],
-    },
+        deviceType: {
+          type: String,
+          enum: ["ANDROID", "IOS", "WEB"],
+          required: true,
+        },
+        deviceId: {
+          type: String,
+          trim: true,
+        },
+        registeredAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
 
     // For suspended users
     suspensionReason: {

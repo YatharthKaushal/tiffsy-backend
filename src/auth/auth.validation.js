@@ -81,6 +81,10 @@ export const fcmTokenSchema = Joi.object({
     "string.empty": "FCM token is required",
   }),
   deviceId: Joi.string().trim().allow("", null),
+  deviceType: Joi.string().valid("ANDROID", "IOS", "WEB").required().messages({
+    "any.required": "Device type is required",
+    "any.only": "Device type must be ANDROID, IOS, or WEB",
+  }),
 });
 
 /**

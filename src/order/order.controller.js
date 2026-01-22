@@ -20,6 +20,12 @@ import {
   restoreVouchersForOrder,
   getAvailableVoucherCount,
 } from "../../services/voucher.service.js";
+import { sendToUser, sendToRole } from "../../services/notification.service.js";
+import {
+  getOrderStatusNotification,
+  KITCHEN_TEMPLATES,
+  buildFromTemplate,
+} from "../../services/notification-templates.service.js";
 
 // Create logger instance for this controller
 const log = createLogger("OrderController");
@@ -657,6 +663,21 @@ export async function createOrder(req, res) {
       duration: `${duration}ms`,
     });
     log.response("createOrder", 201, true, duration);
+
+    // Notify kitchen staff about new order (for MEAL_MENU orders)
+    if (menuType === "MEAL_MENU") {
+      const { title, body } = buildFromTemplate(KITCHEN_TEMPLATES.NEW_MANUAL_ORDER, {
+        orderNumber: order.orderNumber,
+        itemCount: order.items.length,
+        mealWindow: mealWindow,
+      });
+      sendToRole("KITCHEN_STAFF", "NEW_MANUAL_ORDER", title, body, {
+        kitchenId: kitchenId,
+        data: { orderId: order._id.toString(), orderNumber: order.orderNumber },
+        entityType: "ORDER",
+        entityId: order._id,
+      });
+    }
 
     return sendResponse(res, 201, true, "Order placed successfully", {
       order,
@@ -1309,6 +1330,16 @@ export async function acceptOrder(req, res) {
     });
     log.response("acceptOrder", 200, true, duration);
 
+    // Notify customer about order acceptance
+    const notification = getOrderStatusNotification("ACCEPTED", order);
+    if (notification) {
+      sendToUser(order.userId, "ORDER_STATUS_CHANGE", notification.title, notification.body, {
+        data: { orderId: order._id.toString(), orderNumber: order.orderNumber, status: "PREPARING" },
+        entityType: "ORDER",
+        entityId: order._id,
+      });
+    }
+
     return sendResponse(res, 200, true, "Order accepted", { order });
   } catch (error) {
     const duration = Date.now() - startTime;
@@ -1394,6 +1425,16 @@ export async function rejectOrder(req, res) {
       refundInitiated,
     });
     log.response("rejectOrder", 200, true, duration);
+
+    // Notify customer about order rejection
+    const notification = getOrderStatusNotification("REJECTED", order, reason);
+    if (notification) {
+      sendToUser(order.userId, "ORDER_STATUS_CHANGE", notification.title, notification.body, {
+        data: { orderId: order._id.toString(), orderNumber: order.orderNumber, status: "REJECTED" },
+        entityType: "ORDER",
+        entityId: order._id,
+      });
+    }
 
     return sendResponse(res, 200, true, "Order rejected", {
       order,
@@ -1487,6 +1528,16 @@ export async function cancelOrder(req, res) {
     });
     log.response("cancelOrder", 200, true, duration);
 
+    // Notify customer about order cancellation
+    const notification = getOrderStatusNotification("CANCELLED", order, reason);
+    if (notification) {
+      sendToUser(order.userId, "ORDER_STATUS_CHANGE", notification.title, notification.body, {
+        data: { orderId: order._id.toString(), orderNumber: order.orderNumber, status: "CANCELLED" },
+        entityType: "ORDER",
+        entityId: order._id,
+      });
+    }
+
     return sendResponse(res, 200, true, "Order cancelled", {
       order,
       refundInitiated,
@@ -1541,6 +1592,18 @@ export async function updateOrderStatus(req, res) {
     }
 
     await order.updateStatus(status, staffId, notes);
+
+    // Notify customer about status change (READY is the most important for them)
+    if (["READY", "PREPARING"].includes(status)) {
+      const notification = getOrderStatusNotification(status, order);
+      if (notification) {
+        sendToUser(order.userId, "ORDER_STATUS_CHANGE", notification.title, notification.body, {
+          data: { orderId: order._id.toString(), orderNumber: order.orderNumber, status },
+          entityType: "ORDER",
+          entityId: order._id,
+        });
+      }
+    }
 
     return sendResponse(res, 200, true, "Order status updated", { order });
   } catch (error) {
@@ -1649,6 +1712,16 @@ export async function updateDeliveryStatus(req, res) {
       hasProofOfDelivery: !!proofOfDelivery,
     });
     log.response("updateDeliveryStatus", 200, true, duration);
+
+    // Notify customer about delivery status change
+    const notification = getOrderStatusNotification(finalStatus, order);
+    if (notification) {
+      sendToUser(order.userId, "ORDER_STATUS_CHANGE", notification.title, notification.body, {
+        data: { orderId: order._id.toString(), orderNumber: order.orderNumber, status: finalStatus },
+        entityType: "ORDER",
+        entityId: order._id,
+      });
+    }
 
     return sendResponse(res, 200, true, "Delivery status updated", { order });
   } catch (error) {

@@ -2,8 +2,11 @@ import mongoose from "mongoose";
 import MenuItem from "../../schema/menuItem.schema.js";
 import Addon from "../../schema/addon.schema.js";
 import Kitchen from "../../schema/kitchen.schema.js";
+import Subscription from "../../schema/subscription.schema.js";
 import { sendResponse } from "../../utils/response.utils.js";
 import { safeAuditLog } from "../../utils/audit.utils.js";
+import { sendToUserIds } from "../../services/notification.service.js";
+import { MENU_TEMPLATES, buildFromTemplate } from "../../services/notification-templates.service.js";
 
 /**
  * Menu Controller
@@ -15,6 +18,51 @@ const CUTOFF_TIMES = {
   LUNCH: "11:00",
   DINNER: "21:00",
 };
+
+/**
+ * Helper: Notify active subscribers about menu update
+ * Only notifies customers with active subscriptions and remaining vouchers
+ * @param {ObjectId} kitchenId - Kitchen ID
+ */
+async function notifySubscribersAboutMenuUpdate(kitchenId) {
+  try {
+    const now = new Date();
+
+    // Find active subscriptions with vouchers remaining for this kitchen
+    // Customers who have defaultKitchenId set to this kitchen
+    const subscriptions = await Subscription.find({
+      status: "ACTIVE",
+      voucherExpiryDate: { $gt: now },
+      defaultKitchenId: kitchenId,
+      $expr: { $lt: ["$vouchersUsed", "$totalVouchersIssued"] },
+    }).select("userId");
+
+    if (subscriptions.length === 0) {
+      return;
+    }
+
+    // Get unique user IDs
+    const userIds = [...new Set(subscriptions.map((s) => s.userId.toString()))];
+
+    // Get kitchen name
+    const kitchen = await Kitchen.findById(kitchenId).select("name");
+    const kitchenName = kitchen?.name || "Kitchen";
+
+    // Build notification
+    const { title, body } = buildFromTemplate(MENU_TEMPLATES.MENU_UPDATED, {
+      kitchenName,
+    });
+
+    // Send notification to all subscribers
+    await sendToUserIds(userIds, "MENU_UPDATE", title, body, {
+      data: { kitchenId: kitchenId.toString() },
+    });
+
+    console.log("> Menu update notification sent:", { kitchenId, userCount: userIds.length });
+  } catch (error) {
+    console.log("> Menu update notification error:", error.message);
+  }
+}
 
 /**
  * Helper: Validate addon IDs belong to kitchen
@@ -410,6 +458,12 @@ export const updateMenuItem = async (req, res) => {
 
     await menuItem.save();
     await menuItem.populate("addonIds", "name price isAvailable");
+
+    // Notify active subscribers about menu update (non-blocking)
+    // Only for MEAL_MENU items
+    if (menuItem.menuType === "MEAL_MENU") {
+      notifySubscribersAboutMenuUpdate(menuItem.kitchenId).catch(() => {});
+    }
 
     return sendResponse(res, 200, "Menu item updated", { menuItem });
   } catch (error) {
@@ -868,6 +922,100 @@ export const getMyKitchenMenuStats = async (req, res) => {
   }
 };
 
+/**
+ * Send menu announcement to active subscribers
+ * Allows kitchen to notify subscribers without changing menu
+ *
+ * POST /api/menu/my-kitchen/announcement
+ * @access Kitchen Staff, Admin
+ */
+export const sendMenuAnnouncement = async (req, res) => {
+  try {
+    const { title, message, kitchenId: bodyKitchenId } = req.body;
+
+    // Determine kitchen ID based on role
+    let kitchenId;
+    if (req.user.role === "KITCHEN_STAFF") {
+      kitchenId = req.user.kitchenId;
+      if (!kitchenId) {
+        return sendResponse(res, 400, false, "No kitchen assigned to your account");
+      }
+    } else if (req.user.role === "ADMIN") {
+      if (!bodyKitchenId) {
+        return sendResponse(res, 400, false, "Kitchen ID is required");
+      }
+      kitchenId = bodyKitchenId;
+    } else {
+      return sendResponse(res, 403, false, "Not authorized");
+    }
+
+    // Validate input
+    if (!title || !message) {
+      return sendResponse(res, 400, false, "Title and message are required");
+    }
+
+    if (title.length > 100) {
+      return sendResponse(res, 400, false, "Title must be 100 characters or less");
+    }
+
+    if (message.length > 500) {
+      return sendResponse(res, 400, false, "Message must be 500 characters or less");
+    }
+
+    // Get kitchen
+    const kitchen = await Kitchen.findById(kitchenId).select("name");
+    if (!kitchen) {
+      return sendResponse(res, 404, false, "Kitchen not found");
+    }
+
+    const now = new Date();
+
+    // Find active subscriptions with vouchers remaining for this kitchen
+    const subscriptions = await Subscription.find({
+      status: "ACTIVE",
+      voucherExpiryDate: { $gt: now },
+      defaultKitchenId: kitchenId,
+      $expr: { $lt: ["$vouchersUsed", "$totalVouchersIssued"] },
+    }).select("userId");
+
+    if (subscriptions.length === 0) {
+      return sendResponse(res, 200, true, "No active subscribers to notify", {
+        subscribersNotified: 0,
+      });
+    }
+
+    // Get unique user IDs
+    const userIds = [...new Set(subscriptions.map((s) => s.userId.toString()))];
+
+    // Build notification using custom announcement template
+    const { title: notifTitle, body: notifBody } = buildFromTemplate(
+      MENU_TEMPLATES.CUSTOM_ANNOUNCEMENT,
+      { title, message }
+    );
+
+    // Send notification to all subscribers
+    await sendToUserIds(userIds, "MENU_UPDATE", notifTitle, notifBody, {
+      data: { kitchenId: kitchenId.toString(), type: "ANNOUNCEMENT" },
+    });
+
+    console.log("> Menu announcement sent:", {
+      kitchenId,
+      kitchenName: kitchen.name,
+      userCount: userIds.length,
+      title,
+    });
+
+    return sendResponse(res, 200, true, "Announcement sent successfully", {
+      subscribersNotified: userIds.length,
+      title,
+      message,
+    });
+  } catch (error) {
+    console.log("> Send menu announcement error:", error);
+    return sendResponse(res, 500, false, "Failed to send announcement");
+  }
+};
+
 export default {
   createMenuItem,
   getMenuItems,
@@ -881,4 +1029,5 @@ export default {
   getKitchenMenu,
   getMealMenuForWindow,
   getMyKitchenMenuStats,
+  sendMenuAnnouncement,
 };

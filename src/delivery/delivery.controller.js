@@ -6,6 +6,9 @@ import Zone from "../../schema/zone.schema.js";
 import { sendResponse } from "../../utils/response.utils.js";
 import { safeAuditCreate } from "../../utils/audit.utils.js";
 import { checkCutoffTime, getCutoffTimes } from "../../services/config.service.js";
+import { sendToRole, sendToUserIds } from "../../services/notification.service.js";
+import { DRIVER_TEMPLATES, BATCH_REMINDER_TEMPLATES, buildFromTemplate } from "../../services/notification-templates.service.js";
+import User from "../../schema/user.schema.js";
 
 
 /**
@@ -404,6 +407,23 @@ export async function dispatchBatches(req, res) {
         batchNumber: batch.batchNumber,
         status: batch.status,
         orderCount: batch.orderIds.length,
+      });
+    }
+
+    // Notify all active drivers about available batches
+    if (dispatchedBatches.length > 0) {
+      const totalOrders = dispatchedBatches.reduce((sum, b) => sum + b.orderCount, 0);
+      const { title, body } = buildFromTemplate(DRIVER_TEMPLATES.BATCH_READY, {
+        orderCount: totalOrders,
+        kitchenName: kitchen.name,
+      });
+      sendToRole("DRIVER", "BATCH_READY", title, body, {
+        data: {
+          kitchenId: kitchenId.toString(),
+          mealWindow,
+          batchCount: dispatchedBatches.length.toString(),
+        },
+        entityType: "BATCH",
       });
     }
 
@@ -1617,6 +1637,127 @@ export async function getBatchConfig(req, res) {
   });
 }
 
+/**
+ * Send batch preparation reminder to kitchen staff
+ * Reminds kitchens about pending orders before cutoff time
+ * @route POST /api/delivery/kitchen-reminder
+ * @access Admin, System
+ */
+export async function sendKitchenBatchReminder(req, res) {
+  try {
+    const { mealWindow, kitchenId } = req.body;
+
+    // Validate meal window
+    if (!mealWindow || !["LUNCH", "DINNER"].includes(mealWindow)) {
+      return sendResponse(res, 400, false, "Valid mealWindow (LUNCH or DINNER) is required");
+    }
+
+    // Build query for pending orders
+    const orderQuery = {
+      menuType: "MEAL_MENU",
+      mealWindow,
+      status: { $in: ["PLACED", "ACCEPTED", "PREPARING"] },
+    };
+
+    if (kitchenId) {
+      orderQuery.kitchenId = kitchenId;
+    }
+
+    // Get pending orders grouped by kitchen
+    const pendingByKitchen = await Order.aggregate([
+      { $match: orderQuery },
+      {
+        $group: {
+          _id: "$kitchenId",
+          orderCount: { $sum: 1 },
+          orders: { $push: { orderId: "$_id", orderNumber: "$orderNumber", status: "$status" } },
+        },
+      },
+    ]);
+
+    if (pendingByKitchen.length === 0) {
+      return sendResponse(res, 200, true, "No pending orders to remind about", {
+        kitchensNotified: 0,
+      });
+    }
+
+    // Get cutoff times
+    const cutoffTimes = getCutoffTimes();
+    const cutoffTime = cutoffTimes[mealWindow];
+
+    // Calculate minutes until cutoff
+    const now = new Date();
+    const istOffset = 5.5 * 60 * 60 * 1000;
+    const istNow = new Date(now.getTime() + (now.getTimezoneOffset() * 60 * 1000) + istOffset);
+    const [cutoffHour, cutoffMin] = cutoffTime.split(":").map(Number);
+    const cutoffDate = new Date(istNow);
+    cutoffDate.setHours(cutoffHour, cutoffMin, 0, 0);
+    const minutesRemaining = Math.max(0, Math.round((cutoffDate - istNow) / (60 * 1000)));
+
+    let kitchensNotified = 0;
+    const notificationResults = [];
+
+    for (const kitchenData of pendingByKitchen) {
+      try {
+        // Get kitchen name
+        const kitchen = await Kitchen.findById(kitchenData._id).select("name");
+        if (!kitchen) continue;
+
+        // Get kitchen staff for this kitchen
+        const kitchenStaff = await User.find({
+          role: "KITCHEN_STAFF",
+          kitchenId: kitchenData._id,
+          status: "ACTIVE",
+        }).select("_id");
+
+        if (kitchenStaff.length === 0) continue;
+
+        const staffIds = kitchenStaff.map((s) => s._id.toString());
+
+        // Build notification
+        const { title, body } = buildFromTemplate(BATCH_REMINDER_TEMPLATES.CUTOFF_APPROACHING, {
+          mealWindow,
+          minutesRemaining,
+          pendingOrders: kitchenData.orderCount,
+        });
+
+        // Send to kitchen staff
+        await sendToUserIds(staffIds, "BATCH_REMINDER", title, body, {
+          data: {
+            kitchenId: kitchenData._id.toString(),
+            mealWindow,
+            orderCount: kitchenData.orderCount.toString(),
+            cutoffTime,
+          },
+        });
+
+        kitchensNotified++;
+        notificationResults.push({
+          kitchenId: kitchenData._id,
+          kitchenName: kitchen.name,
+          orderCount: kitchenData.orderCount,
+          staffNotified: staffIds.length,
+        });
+      } catch (error) {
+        console.log("> Kitchen reminder error for kitchen:", kitchenData._id, error.message);
+      }
+    }
+
+    console.log(`> Kitchen batch reminders sent: ${kitchensNotified} kitchens, ${mealWindow}`);
+
+    return sendResponse(res, 200, true, "Kitchen reminders sent", {
+      kitchensNotified,
+      mealWindow,
+      minutesUntilCutoff: minutesRemaining,
+      cutoffTime,
+      details: notificationResults,
+    });
+  } catch (error) {
+    console.log("Send kitchen batch reminder error:", error);
+    return sendResponse(res, 500, false, "Failed to send kitchen reminders");
+  }
+}
+
 export default {
   autoBatchOrders,
   dispatchBatches,
@@ -1638,4 +1779,5 @@ export default {
   getDeliveryStats,
   updateBatchConfig,
   getBatchConfig,
+  sendKitchenBatchReminder,
 };

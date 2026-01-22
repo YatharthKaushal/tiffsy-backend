@@ -155,4 +155,20 @@ router.get(
   menuController.getMyKitchenMenuStats
 );
 
+// Menu announcement validation schema
+const menuAnnouncementSchema = Joi.object({
+  title: Joi.string().trim().max(100).required(),
+  message: Joi.string().trim().max(500).required(),
+  kitchenId: Joi.string().hex().length(24).optional(), // Required for admin
+});
+
+// Send menu announcement to active subscribers
+router.post(
+  "/my-kitchen/announcement",
+  adminAuthMiddleware,
+  roleMiddleware(["KITCHEN_STAFF", "ADMIN"]),
+  validateBody(menuAnnouncementSchema),
+  menuController.sendMenuAnnouncement
+);
+
 export default router;

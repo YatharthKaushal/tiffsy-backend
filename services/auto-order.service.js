@@ -5,6 +5,8 @@ import MenuItem from "../schema/menuItem.schema.js";
 import CustomerAddress from "../schema/customerAddress.schema.js";
 import Voucher from "../schema/voucher.schema.js";
 import { redeemVouchersWithTransaction } from "./voucher.service.js";
+import { sendToRole, sendToUser } from "./notification.service.js";
+import { KITCHEN_TEMPLATES, buildFromTemplate } from "./notification-templates.service.js";
 
 /**
  * Auto-Order Service
@@ -284,6 +286,26 @@ export async function processAutoOrder(subscription, date, mealWindow, dryRun = 
         await order.save();
 
         console.log(`> Auto-order created: ${orderNumber} for user ${userId}`);
+
+        // Notify customer about their auto-order
+        sendToUser(userId, "ORDER_STATUS_CHANGE", "Auto Order Placed!",
+            `Your ${mealWindow.toLowerCase()} order #${order.orderNumber} has been automatically placed.`, {
+            data: { orderId: order._id.toString(), orderNumber: order.orderNumber, status: "PLACED" },
+            entityType: "ORDER",
+            entityId: order._id,
+        });
+
+        // Notify kitchen staff about new auto-order
+        const { title, body } = buildFromTemplate(KITCHEN_TEMPLATES.NEW_AUTO_ORDER, {
+            orderNumber: order.orderNumber,
+            mealWindow: mealWindow,
+        });
+        sendToRole("KITCHEN_STAFF", "NEW_AUTO_ORDER", title, body, {
+            kitchenId: kitchen._id,
+            data: { orderId: order._id.toString(), orderNumber: order.orderNumber },
+            entityType: "ORDER",
+            entityId: order._id,
+        });
 
         return {
             success: true,

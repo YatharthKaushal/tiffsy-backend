@@ -7,6 +7,7 @@ import Zone from "../../schema/zone.schema.js";
 import { sendResponse } from "../../utils/response.utils.js";
 import { normalizePhone } from "../../utils/phone.utils.js";
 import { safeAuditCreate } from "../../utils/audit.utils.js";
+import { checkVoucherExpiryForUser } from "../../services/voucher-expiry.service.js";
 
 /**
  * Auth Controller
@@ -160,6 +161,11 @@ export const syncUser = async (req, res) => {
     }
     user.lastLoginAt = new Date();
     await user.save();
+
+    // Check voucher expiry for customers (non-blocking)
+    if (user.role === "CUSTOMER") {
+      checkVoucherExpiryForUser(user._id).catch(() => {});
+    }
 
     const isProfileComplete = Boolean(user.name);
 
@@ -430,14 +436,27 @@ export const getCurrentUser = async (req, res) => {
  * Register/update FCM token for push notifications
  *
  * POST /api/auth/fcm-token
+ *
+ * @body {string} fcmToken - Firebase Cloud Messaging token
+ * @body {string} deviceId - Optional unique device identifier
+ * @body {string} deviceType - Device platform: ANDROID, IOS, or WEB
+ *
+ * @success 200 - { success: true, message: "FCM token registered" }
+ * @error 400 - { success: false, message: "Device type is required" }
+ * @error 401 - { success: false, message: "User not found" }
  */
 export const updateFcmToken = async (req, res) => {
   try {
-    const { fcmToken, deviceId } = req.body;
+    const { fcmToken, deviceId, deviceType } = req.body;
     const user = req.user;
 
     if (!user) {
       return sendResponse(res, 401, "User not found");
+    }
+
+    // Validate device type
+    if (!["ANDROID", "IOS", "WEB"].includes(deviceType)) {
+      return sendResponse(res, 400, "Invalid device type. Must be ANDROID, IOS, or WEB");
     }
 
     // Initialize array if not exists
@@ -453,9 +472,10 @@ export const updateFcmToken = async (req, res) => {
     // Remove duplicate token if exists
     user.fcmTokens = user.fcmTokens.filter((t) => t.token !== fcmToken);
 
-    // Add new token
+    // Add new token with device type
     user.fcmTokens.push({
       token: fcmToken,
+      deviceType: deviceType,
       deviceId: deviceId || undefined,
       registeredAt: new Date(),
     });
@@ -466,6 +486,8 @@ export const updateFcmToken = async (req, res) => {
     }
 
     await user.save();
+
+    console.log("> FCM token registered:", { userId: user._id, deviceType });
 
     return sendResponse(res, 200, "FCM token registered");
   } catch (error) {

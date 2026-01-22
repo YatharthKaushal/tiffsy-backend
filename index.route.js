@@ -19,6 +19,7 @@ import deliveryRoutes from "./src/delivery/delivery.routes.js";
 import adminRoutes from "./src/admin/admin.routes.js";
 import refundRoutes from "./src/refund/refund.routes.js";
 import paymentRoutes from "./src/payment/payment.routes.js";
+import notificationRoutes from "./src/notification/notification.routes.js";
 
 const router = Router();
 
@@ -131,5 +132,11 @@ router.use("/refunds", refundRoutes);
  * @desc Payment gateway routes (Razorpay)
  */
 router.use("/payment", paymentRoutes);
+
+/**
+ * @route /api/notifications
+ * @desc In-app notification routes
+ */
+router.use("/notifications", notificationRoutes);
 
 export default router;

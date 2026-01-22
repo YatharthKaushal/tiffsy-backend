@@ -260,4 +260,51 @@ router.patch(
   adminController.rejectKitchen
 );
 
+/**
+ * PUSH NOTIFICATIONS
+ */
+
+// Validation schema for push notification
+const pushNotificationSchema = Joi.object({
+  title: Joi.string().min(1).max(100).trim().required().messages({
+    "any.required": "Notification title is required",
+    "string.max": "Title cannot exceed 100 characters",
+  }),
+  body: Joi.string().min(1).max(500).trim().required().messages({
+    "any.required": "Notification body is required",
+    "string.max": "Body cannot exceed 500 characters",
+  }),
+  targetType: Joi.string()
+    .valid("SPECIFIC_USERS", "ROLE", "ALL_CUSTOMERS", "ACTIVE_SUBSCRIBERS")
+    .required()
+    .messages({
+      "any.required": "Target type is required",
+      "any.only": "Target type must be SPECIFIC_USERS, ROLE, ALL_CUSTOMERS, or ACTIVE_SUBSCRIBERS",
+    }),
+  targetIds: Joi.array()
+    .items(Joi.string().hex().length(24))
+    .when("targetType", {
+      is: "SPECIFIC_USERS",
+      then: Joi.array().min(1).required(),
+      otherwise: Joi.array().optional(),
+    }),
+  targetRole: Joi.string()
+    .valid("CUSTOMER", "DRIVER", "KITCHEN_STAFF", "ADMIN")
+    .when("targetType", {
+      is: "ROLE",
+      then: Joi.string().required(),
+      otherwise: Joi.string().optional(),
+    }),
+  data: Joi.object().optional(),
+});
+
+// Send push notification to users
+router.post(
+  "/push-notification",
+  adminAuthMiddleware,
+  adminMiddleware,
+  validateBody(pushNotificationSchema),
+  adminController.sendPushNotification
+);
+
 export default router;

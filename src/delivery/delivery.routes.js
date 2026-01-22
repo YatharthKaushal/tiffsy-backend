@@ -147,6 +147,21 @@ router.get(
   deliveryController.getBatchConfig
 );
 
+// Kitchen batch reminder validation schema
+const kitchenReminderSchema = Joi.object({
+  mealWindow: Joi.string().valid("LUNCH", "DINNER").required(),
+  kitchenId: Joi.string().hex().length(24).optional(),
+});
+
+// Send kitchen batch reminder (Admin/System)
+router.post(
+  "/kitchen-reminder",
+  adminAuthMiddleware,
+  adminMiddleware,
+  validateBody(kitchenReminderSchema),
+  deliveryController.sendKitchenBatchReminder
+);
+
 /**
  * BATCH ROUTES
  */

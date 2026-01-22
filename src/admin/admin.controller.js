@@ -5,6 +5,7 @@ import Zone from "../../schema/zone.schema.js";
 import Order from "../../schema/order.schema.js";
 import Refund from "../../schema/refund.schema.js";
 import Voucher from "../../schema/voucher.schema.js";
+import Subscription from "../../schema/subscription.schema.js";
 import AuditLog from "../../schema/auditLog.schema.js";
 import SystemConfig from "../../schema/systemConfig.schema.js";
 import { sendResponse } from "../../utils/response.utils.js";
@@ -17,6 +18,7 @@ import {
   getCancellationConfig,
   getFeesConfig,
 } from "../../services/config.service.js";
+import { sendToUserIds, sendToRole } from "../../services/notification.service.js";
 
 /**
  * 
@@ -1279,6 +1281,117 @@ export async function rejectKitchen(req, res) {
   }
 }
 
+/**
+ * Send custom push notification to users
+ *
+ * POST /api/admin/push-notification
+ *
+ * @body {string} title - Notification title (required)
+ * @body {string} body - Notification body (required)
+ * @body {string} targetType - Target type: SPECIFIC_USERS, ROLE, ALL_CUSTOMERS (required)
+ * @body {Array<string>} targetIds - User IDs (required if targetType is SPECIFIC_USERS)
+ * @body {string} targetRole - User role (required if targetType is ROLE)
+ * @body {Object} data - Optional payload data for deep linking
+ *
+ * @success 200 - { success: true, message: "Notification queued", data: { sentCount: number } }
+ * @error 400 - { success: false, message: "Title and body are required" }
+ */
+export async function sendPushNotification(req, res) {
+  try {
+    const { title, body, targetType, targetIds, targetRole, data } = req.body;
+    const adminId = req.user._id;
+
+    console.log("> Admin push notification request:", { targetType, targetRole, targetIdsCount: targetIds?.length });
+
+    // Validate required fields
+    if (!title || !body) {
+      return sendResponse(res, 400, false, "Title and body are required");
+    }
+
+    if (!targetType) {
+      return sendResponse(res, 400, false, "Target type is required");
+    }
+
+    let userIds = [];
+
+    if (targetType === "SPECIFIC_USERS") {
+      if (!targetIds || targetIds.length === 0) {
+        return sendResponse(res, 400, false, "Target user IDs are required for SPECIFIC_USERS target type");
+      }
+      userIds = targetIds;
+    } else if (targetType === "ROLE") {
+      if (!targetRole) {
+        return sendResponse(res, 400, false, "Target role is required for ROLE target type");
+      }
+      // Find users by role with FCM tokens
+      const users = await User.find({
+        role: targetRole,
+        status: "ACTIVE",
+        "fcmTokens.0": { $exists: true },
+      }).select("_id");
+      userIds = users.map((u) => u._id);
+    } else if (targetType === "ALL_CUSTOMERS") {
+      // Find all customers with FCM tokens
+      const users = await User.find({
+        role: "CUSTOMER",
+        status: "ACTIVE",
+        "fcmTokens.0": { $exists: true },
+      }).select("_id");
+      userIds = users.map((u) => u._id);
+    } else if (targetType === "ACTIVE_SUBSCRIBERS") {
+      // Find customers with active subscription and remaining vouchers
+      const now = new Date();
+      const subscriptions = await Subscription.find({
+        status: "ACTIVE",
+        voucherExpiryDate: { $gt: now },
+        $expr: { $lt: ["$vouchersUsed", "$totalVouchersIssued"] },
+      }).select("userId");
+
+      const subscriberIds = [...new Set(subscriptions.map((s) => s.userId.toString()))];
+
+      // Find those with FCM tokens
+      const users = await User.find({
+        _id: { $in: subscriberIds },
+        status: "ACTIVE",
+        "fcmTokens.0": { $exists: true },
+      }).select("_id");
+      userIds = users.map((u) => u._id);
+    } else {
+      return sendResponse(res, 400, false, "Invalid target type. Must be SPECIFIC_USERS, ROLE, ALL_CUSTOMERS, or ACTIVE_SUBSCRIBERS");
+    }
+
+    if (userIds.length === 0) {
+      return sendResponse(res, 200, true, "No users found to notify", { sentCount: 0 });
+    }
+
+    // Fire notification (non-blocking)
+    sendToUserIds(userIds, "ADMIN_PUSH", title, body, { data: data || {} });
+
+    // Log audit
+    safeAuditCreate({
+      action: "PUSH_NOTIFICATION",
+      entityType: "NOTIFICATION",
+      userId: adminId,
+      userRole: "ADMIN",
+      notes: `Sent push to ${userIds.length} users: ${title}`,
+      metadata: {
+        targetType,
+        targetRole,
+        userCount: userIds.length,
+      },
+    });
+
+    console.log("> Admin push notification queued:", { sentCount: userIds.length });
+
+    return sendResponse(res, 200, true, "Notification queued", {
+      sentCount: userIds.length,
+    });
+  } catch (error) {
+    console.log("> Send push notification error:", error);
+    return sendResponse(res, 500, false, "Failed to send notification");
+  }
+}
+
 export default {
   createUser,
   getUsers,
@@ -1304,4 +1417,5 @@ export default {
   exportReport,
   getGuidelines,
   updateGuidelines,
+  sendPushNotification,
 };

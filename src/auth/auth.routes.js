@@ -135,11 +135,11 @@ router.post(
 /**
  * DELETE /api/auth/fcm-token
  * Remove FCM token (logout from device)
+ * Accepts fcmToken from body OR query parameter
  */
 router.delete(
   "/fcm-token",
   authMiddleware,
-  validateBody(fcmTokenSchema),
   authController.removeFcmToken
 );
 

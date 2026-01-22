@@ -500,19 +500,35 @@ export const updateFcmToken = async (req, res) => {
  * Remove FCM token (logout from device)
  *
  * DELETE /api/auth/fcm-token
+ * @body {string} fcmToken - FCM token to remove (body or query param)
+ * @query {string} fcmToken - FCM token to remove (body or query param)
  */
 export const removeFcmToken = async (req, res) => {
   try {
-    const { fcmToken } = req.body;
+    // Accept token from body OR query params (frontend might send either way)
+    const fcmToken = req.body?.fcmToken || req.query?.fcmToken;
     const user = req.user;
 
     if (!user) {
       return sendResponse(res, 401, "User not found");
     }
 
+    if (!fcmToken) {
+      return sendResponse(res, 400, "FCM token is required");
+    }
+
     if (user.fcmTokens) {
+      const beforeCount = user.fcmTokens.length;
       user.fcmTokens = user.fcmTokens.filter((t) => t.token !== fcmToken);
+      const afterCount = user.fcmTokens.length;
+
+      if (beforeCount === afterCount) {
+        console.log("> FCM token not found in user's tokens:", { userId: user._id });
+        return sendResponse(res, 404, "FCM token not found");
+      }
+
       await user.save();
+      console.log("> FCM token removed:", { userId: user._id, tokensRemaining: afterCount });
     }
 
     return sendResponse(res, 200, "FCM token removed");

@@ -15,6 +15,9 @@ import {
   pauseSubscriptionSchema,
   skipMealSchema,
   unskipMealSchema,
+  cronTriggerSchema,
+  queryAutoOrderLogsSchema,
+  queryFailureSummarySchema,
 } from "./subscription.validation.js";
 import Joi from "joi";
 
@@ -153,12 +156,54 @@ router.get(
 /**
  * SYSTEM - AUTO-ORDER TRIGGER
  * Protected by CRON_SECRET header for external schedulers
- * NOTE: This route MUST be before /:id routes to avoid matching "trigger-auto-orders" as an ID
+ * NOTE: These routes MUST be before /:id routes to avoid matching as an ID
  */
 router.post(
   "/trigger-auto-orders",
   validateBody(triggerAutoOrdersSchema),
   subscriptionController.triggerAutoOrders
+);
+
+/**
+ * CRON ENDPOINTS - Dedicated endpoints for LUNCH and DINNER auto-orders
+ * Protected by CRON_SECRET header
+ */
+
+// Trigger LUNCH auto-orders
+router.post(
+  "/cron/lunch",
+  validateBody(cronTriggerSchema),
+  subscriptionController.triggerLunchAutoOrders
+);
+
+// Trigger DINNER auto-orders
+router.post(
+  "/cron/dinner",
+  validateBody(cronTriggerSchema),
+  subscriptionController.triggerDinnerAutoOrders
+);
+
+/**
+ * AUTO-ORDER LOGS (Admin)
+ * Endpoints to view and analyze auto-order history
+ */
+
+// Get auto-order logs with filters
+router.get(
+  "/auto-order-logs",
+  adminAuthMiddleware,
+  adminMiddleware,
+  validateQuery(queryAutoOrderLogsSchema),
+  subscriptionController.getAutoOrderLogs
+);
+
+// Get auto-order failure summary
+router.get(
+  "/auto-order-logs/summary",
+  adminAuthMiddleware,
+  adminMiddleware,
+  validateQuery(queryFailureSummarySchema),
+  subscriptionController.getAutoOrderFailureSummary
 );
 
 /**

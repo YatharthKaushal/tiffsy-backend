@@ -17,6 +17,7 @@ import {
   getCutoffTimes,
   getCancellationConfig,
   getFeesConfig,
+  getAutoOrderConfig,
 } from "../../services/config.service.js";
 import { sendToUserIds, sendToRole } from "../../services/notification.service.js";
 
@@ -734,12 +735,14 @@ export async function getSystemConfig(req, res) {
     const cutoffTimes = getCutoffTimes();
     const cancellation = getCancellationConfig();
     const fees = getFeesConfig();
+    const autoOrder = getAutoOrderConfig();
 
     // Combine with legacy config
     const config = {
       cutoffTimes,
       cancellation,
       fees,
+      autoOrder,
       ...LEGACY_CONFIG,
     };
 
@@ -752,7 +755,7 @@ export async function getSystemConfig(req, res) {
 
 /**
  * Update system configuration
- * Persists cutoffTimes, cancellation, and fees to database
+ * Persists cutoffTimes, cancellation, fees, and autoOrder to database
  * @route PUT /api/admin/config
  * @access Admin
  */
@@ -766,6 +769,7 @@ export async function updateSystemConfig(req, res) {
       cutoffTimes: getCutoffTimes(),
       cancellation: getCancellationConfig(),
       fees: getFeesConfig(),
+      autoOrder: getAutoOrderConfig(),
       ...LEGACY_CONFIG,
     };
 
@@ -783,6 +787,11 @@ export async function updateSystemConfig(req, res) {
     if (updates.fees) {
       const currentFees = getFeesConfig();
       await updateConfig("fees", { ...currentFees, ...updates.fees }, adminId);
+    }
+
+    if (updates.autoOrder) {
+      const currentAutoOrder = getAutoOrderConfig();
+      await updateConfig("autoOrder", { ...currentAutoOrder, ...updates.autoOrder }, adminId);
     }
 
     // Update legacy in-memory configs
@@ -810,6 +819,7 @@ export async function updateSystemConfig(req, res) {
       cutoffTimes: getCutoffTimes(),
       cancellation: getCancellationConfig(),
       fees: getFeesConfig(),
+      autoOrder: getAutoOrderConfig(),
       ...LEGACY_CONFIG,
     };
 

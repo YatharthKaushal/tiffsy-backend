@@ -14,6 +14,7 @@ import {
   checkCutoffTime,
   getFeesConfig,
   checkCancellationEligibility,
+  isWithinMealWindowOperatingHours,
 } from "../../services/config.service.js";
 import {
   redeemVouchersWithTransaction,
@@ -46,6 +47,58 @@ const log = createLogger("OrderController");
 function isCutoffPassed(mealWindow, kitchen = null) {
   const cutoffInfo = checkCutoffTime(mealWindow, kitchen);
   return cutoffInfo.isPastCutoff;
+}
+
+/**
+ * Determine if a voucher order should be auto-accepted
+ * Conditions:
+ * 1. Must be MEAL_MENU type (vouchers only for meal menu)
+ * 2. Must have vouchers used (voucherCount > 0)
+ * 3. Payment must be complete (paymentStatus === "PAID")
+ * 4. Must be within meal window operating hours
+ *
+ * @param {Object} params - Order parameters
+ * @param {string} params.menuType - MEAL_MENU or ON_DEMAND_MENU
+ * @param {string} params.mealWindow - LUNCH or DINNER
+ * @param {number} params.voucherCount - Number of vouchers used
+ * @param {string} params.paymentStatus - PENDING, PAID, etc.
+ * @param {Object} params.kitchen - Kitchen document with operatingHours
+ * @returns {Object} { shouldAutoAccept, reason }
+ */
+function shouldAutoAcceptVoucherOrder({
+  menuType,
+  mealWindow,
+  voucherCount,
+  paymentStatus,
+  kitchen,
+}) {
+  // Only auto-accept MEAL_MENU orders with vouchers
+  if (menuType !== "MEAL_MENU") {
+    return { shouldAutoAccept: false, reason: "Not a meal menu order" };
+  }
+
+  if (voucherCount <= 0) {
+    return { shouldAutoAccept: false, reason: "No vouchers used" };
+  }
+
+  // Check payment status - must be PAID
+  if (paymentStatus !== "PAID") {
+    return { shouldAutoAccept: false, reason: "Payment not complete" };
+  }
+
+  // Check if within operating hours
+  const opHours = isWithinMealWindowOperatingHours(mealWindow, kitchen);
+  if (!opHours.isWithinOperatingHours) {
+    return {
+      shouldAutoAccept: false,
+      reason: opHours.message,
+    };
+  }
+
+  return {
+    shouldAutoAccept: true,
+    reason: "Voucher order within operating hours - auto-accepting",
+  };
 }
 
 /**
@@ -596,6 +649,35 @@ export async function createOrder(req, res) {
       });
     }
 
+    // Check if order should be auto-accepted (voucher orders within operating hours)
+    const autoAcceptCheck = shouldAutoAcceptVoucherOrder({
+      menuType,
+      mealWindow,
+      voucherCount: redeemedVouchers.length,
+      paymentStatus,
+      kitchen,
+    });
+
+    const initialStatus = autoAcceptCheck.shouldAutoAccept ? "ACCEPTED" : "PLACED";
+
+    // Build status timeline
+    const statusTimeline = [
+      {
+        status: "PLACED",
+        timestamp: new Date(),
+        updatedBy: userId,
+      },
+    ];
+
+    if (autoAcceptCheck.shouldAutoAccept) {
+      statusTimeline.push({
+        status: "ACCEPTED",
+        timestamp: new Date(),
+        updatedBy: userId,
+        notes: "Auto-accepted (voucher order within operating hours)",
+      });
+    }
+
     // Create order
     const order = new Order({
       orderNumber,
@@ -626,16 +708,11 @@ export async function createOrder(req, res) {
       amountPaid: pricing.amountToPay,
       paymentStatus,
       paymentMethod: paymentMethod || "OTHER",
-      status: "PLACED",
-      statusTimeline: [
-        {
-          status: "PLACED",
-          timestamp: new Date(),
-          updatedBy: userId,
-        },
-      ],
+      status: initialStatus,
+      statusTimeline,
       specialInstructions,
       placedAt: new Date(),
+      ...(autoAcceptCheck.shouldAutoAccept && { acceptedAt: new Date() }),
     });
 
     // Add delivery notes if provided
@@ -660,20 +737,30 @@ export async function createOrder(req, res) {
       vouchersUsed: redeemedVouchers.length,
       couponApplied: couponDiscount?.couponCode || null,
       paymentAutoConfirmed,
+      autoAccepted: autoAcceptCheck.shouldAutoAccept,
+      autoAcceptReason: autoAcceptCheck.reason,
       duration: `${duration}ms`,
     });
     log.response("createOrder", 201, true, duration);
 
     // Notify kitchen staff about new order (for MEAL_MENU orders)
     if (menuType === "MEAL_MENU") {
-      const { title, body } = buildFromTemplate(KITCHEN_TEMPLATES.NEW_MANUAL_ORDER, {
+      const templateKey = autoAcceptCheck.shouldAutoAccept
+        ? "NEW_AUTO_ACCEPTED_ORDER"
+        : "NEW_MANUAL_ORDER";
+      const template = KITCHEN_TEMPLATES[templateKey];
+      const { title, body } = buildFromTemplate(template, {
         orderNumber: order.orderNumber,
         itemCount: order.items.length,
         mealWindow: mealWindow,
       });
-      sendToRole("KITCHEN_STAFF", "NEW_MANUAL_ORDER", title, body, {
+      sendToRole("KITCHEN_STAFF", templateKey, title, body, {
         kitchenId: kitchenId,
-        data: { orderId: order._id.toString(), orderNumber: order.orderNumber },
+        data: {
+          orderId: order._id.toString(),
+          orderNumber: order.orderNumber,
+          autoAccepted: autoAcceptCheck.shouldAutoAccept,
+        },
         entityType: "ORDER",
         entityId: order._id,
       });
@@ -685,6 +772,7 @@ export async function createOrder(req, res) {
       amountToPay: pricing.amountToPay,
       paymentRequired: !isDevMode && pricing.amountToPay > 0,
       paymentAutoConfirmed,
+      autoAccepted: autoAcceptCheck.shouldAutoAccept,
     });
   } catch (error) {
     const duration = Date.now() - startTime;
@@ -1774,7 +1862,7 @@ export async function getAllOrders(req, res) {
     const [orders, total] = await Promise.all([
       Order.find(query)
         .populate("userId", "name phone")
-        .populate("kitchenId", "name")
+        .populate("kitchenId", "name code")
         .populate("zoneId", "name")
         .sort({ placedAt: -1 })
         .skip(skip)
@@ -1782,8 +1870,68 @@ export async function getAllOrders(req, res) {
       Order.countDocuments(query),
     ]);
 
+    // Get unique user IDs from the orders
+    const userIds = [...new Set(orders.map(o => o.userId?._id?.toString()).filter(Boolean))];
+
+    // Aggregate order stats per user (total orders and orders in PLACED status)
+    const userOrderStats = await Order.aggregate([
+      { $match: { userId: { $in: userIds.map(id => new mongoose.Types.ObjectId(id)) } } },
+      {
+        $group: {
+          _id: "$userId",
+          totalOrders: { $sum: 1 },
+          ordersPlaced: {
+            $sum: { $cond: [{ $eq: ["$status", "PLACED"] }, 1, 0] }
+          }
+        }
+      }
+    ]);
+
+    // Create a map for quick lookup
+    const userStatsMap = new Map(
+      userOrderStats.map(stat => [stat._id.toString(), { totalOrders: stat.totalOrders, ordersPlaced: stat.ordersPlaced }])
+    );
+
+    // Enrich orders with user stats while maintaining backward compatibility
+    const enrichedOrders = orders.map(order => {
+      const orderObj = order.toObject();
+      const userIdStr = order.userId?._id?.toString();
+      const stats = userStatsMap.get(userIdStr) || { totalOrders: 0, ordersPlaced: 0 };
+
+      // Add enriched user data (backward compatible - keeps original userId fields)
+      if (orderObj.userId) {
+        orderObj.user = {
+          _id: orderObj.userId._id,
+          name: orderObj.userId.name,
+          phone: orderObj.userId.phone,
+          zone: orderObj.zoneId?.name || null,
+          totalOrders: stats.totalOrders,
+          ordersPlaced: stats.ordersPlaced,
+        };
+      }
+
+      // Add enriched kitchen data (backward compatible - keeps original kitchenId fields)
+      if (orderObj.kitchenId) {
+        orderObj.kitchen = {
+          _id: orderObj.kitchenId._id,
+          name: orderObj.kitchenId.name,
+          code: orderObj.kitchenId.code || null,
+        };
+      }
+
+      // Add enriched zone data (backward compatible - keeps original zoneId fields)
+      if (orderObj.zoneId) {
+        orderObj.zone = {
+          _id: orderObj.zoneId._id,
+          name: orderObj.zoneId.name,
+        };
+      }
+
+      return orderObj;
+    });
+
     return sendResponse(res, 200, true, "All orders retrieved", {
-      orders,
+      orders: enrichedOrders,
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),

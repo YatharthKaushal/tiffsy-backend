@@ -21,6 +21,7 @@ const systemConfigSchema = new mongoose.Schema(
           "refund",
           "subscription",
           "general",
+          "autoOrder",
         ],
         message: "Invalid config key",
       },
@@ -158,6 +159,16 @@ systemConfigSchema.statics.initializeDefaults = async function () {
         processingDays: 5,
       },
       description: "Refund processing configuration",
+    },
+    {
+      key: "autoOrder",
+      value: {
+        lunchCronTime: "10:00",
+        dinnerCronTime: "19:00",
+        enabled: true,
+        autoAcceptOrders: true,
+      },
+      description: "Auto-order cron job configuration (times in IST)",
     },
   ];
 

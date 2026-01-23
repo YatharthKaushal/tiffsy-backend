@@ -7,8 +7,10 @@
 import PaymentTransaction from "../schema/paymentTransaction.schema.js";
 import Order from "../schema/order.schema.js";
 import Subscription from "../schema/subscription.schema.js";
+import Kitchen from "../schema/kitchen.schema.js";
 import razorpayProvider from "./razorpay.provider.js";
 import { getRazorpayKeyId } from "../config/razorpay.config.js";
+import { isWithinMealWindowOperatingHours } from "./config.service.js";
 
 // Razorpay orders expire after this duration (30 minutes)
 const ORDER_EXPIRY_MINUTES = 30;
@@ -253,6 +255,34 @@ async function updatePurchaseEntity(transaction, payment) {
       console.log("  - orderNumber:", updatedOrder.orderNumber);
       console.log("  - paymentStatus:", updatedOrder.paymentStatus);
       console.log("  - paymentMethod:", updatedOrder.paymentMethod);
+
+      // Auto-accept voucher orders after payment if within operating hours
+      if (
+        updatedOrder.voucherUsage?.voucherCount > 0 &&
+        updatedOrder.status === "PLACED" &&
+        updatedOrder.menuType === "MEAL_MENU"
+      ) {
+        const kitchen = await Kitchen.findById(updatedOrder.kitchenId);
+        const opHours = isWithinMealWindowOperatingHours(
+          updatedOrder.mealWindow,
+          kitchen
+        );
+
+        if (opHours.isWithinOperatingHours) {
+          console.log("[PAYMENT SERVICE] Auto-accepting voucher order after payment");
+          updatedOrder.status = "ACCEPTED";
+          updatedOrder.acceptedAt = new Date();
+          updatedOrder.statusTimeline.push({
+            status: "ACCEPTED",
+            timestamp: new Date(),
+            notes: "Auto-accepted after payment (voucher order within operating hours)",
+          });
+          await updatedOrder.save();
+          console.log("[PAYMENT SERVICE] Order auto-accepted:", updatedOrder.orderNumber);
+        } else {
+          console.log("[PAYMENT SERVICE] Voucher order outside operating hours, not auto-accepting:", opHours.message);
+        }
+      }
     } else {
       console.log("[PAYMENT SERVICE] WARNING: Order not found for update:", transaction.referenceId);
     }

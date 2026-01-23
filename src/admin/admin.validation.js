@@ -166,6 +166,24 @@ export const updateSystemConfigSchema = Joi.object({
     maxRetries: Joi.number().integer().min(1).max(10),
     autoProcessDelay: Joi.number().integer().min(0),
   }),
+  autoOrder: Joi.object({
+    lunchCronTime: Joi.string()
+      .pattern(/^([01]\d|2[0-3]):([0-5]\d)$/)
+      .messages({
+        "string.pattern.base": "Lunch cron time must be in HH:mm format (e.g., 10:00)",
+      }),
+    dinnerCronTime: Joi.string()
+      .pattern(/^([01]\d|2[0-3]):([0-5]\d)$/)
+      .messages({
+        "string.pattern.base": "Dinner cron time must be in HH:mm format (e.g., 19:00)",
+      }),
+    enabled: Joi.boolean().messages({
+      "boolean.base": "enabled must be true or false",
+    }),
+    autoAcceptOrders: Joi.boolean().messages({
+      "boolean.base": "autoAcceptOrders must be true or false",
+    }),
+  }),
 });
 
 /**

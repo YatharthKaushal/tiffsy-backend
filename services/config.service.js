@@ -28,6 +28,12 @@ let configCache = {
     handlingFee: 0,
     taxRate: 0.05,
   },
+  autoOrder: {
+    lunchCronTime: "10:00",
+    dinnerCronTime: "19:00",
+    enabled: true,
+    autoAcceptOrders: true,
+  },
 };
 
 let cacheLoaded = false;
@@ -109,6 +115,19 @@ export function getFeesConfig() {
 }
 
 /**
+ * Get auto-order configuration
+ * @returns {Object} Auto-order config with cron timings and settings
+ */
+export function getAutoOrderConfig() {
+  return configCache.autoOrder || {
+    lunchCronTime: "10:00",
+    dinnerCronTime: "19:00",
+    enabled: true,
+    autoAcceptOrders: true,
+  };
+}
+
+/**
  * Check if cutoff time has passed for a meal window
  * All times are in IST (Asia/Kolkata)
  * @param {string} mealWindow - LUNCH or DINNER
@@ -165,6 +184,63 @@ export function checkCutoffTime(mealWindow, kitchen = null) {
     message: isPastCutoff
       ? `${mealWindow} ordering closed. Cutoff was ${cutoffTime}.`
       : `${mealWindow} orders open until ${cutoffTime}`,
+  };
+}
+
+/**
+ * Check if current time is within meal window operating hours
+ * Operating hours = when kitchen is actively preparing (e.g., lunch 11:00-14:00)
+ * Different from cutoff time (when ordering closes)
+ * @param {string} mealWindow - LUNCH or DINNER
+ * @param {Object} kitchen - Kitchen document with operatingHours
+ * @returns {Object} { isWithinOperatingHours, startTime, endTime, message }
+ */
+export function isWithinMealWindowOperatingHours(mealWindow, kitchen) {
+  const defaultHours = {
+    lunch: { startTime: "11:00", endTime: "14:00" },
+    dinner: { startTime: "19:00", endTime: "22:00" },
+  };
+
+  const mealWindowKey = mealWindow.toLowerCase();
+  const operatingHour =
+    kitchen?.operatingHours?.[mealWindowKey] || defaultHours[mealWindowKey];
+
+  if (!operatingHour?.startTime || !operatingHour?.endTime) {
+    return {
+      isWithinOperatingHours: false,
+      startTime: null,
+      endTime: null,
+      message: `No operating hours configured for ${mealWindow}`,
+    };
+  }
+
+  // Get current time in IST (Asia/Kolkata)
+  const now = new Date();
+  const istOffset = 5.5 * 60 * 60 * 1000; // IST is UTC+5:30
+  const istNow = new Date(
+    now.getTime() + now.getTimezoneOffset() * 60 * 1000 + istOffset
+  );
+
+  const [startH, startM] = operatingHour.startTime.split(":").map(Number);
+  const [endH, endM] = operatingHour.endTime.split(":").map(Number);
+
+  const startDate = new Date(istNow);
+  startDate.setHours(startH, startM, 0, 0);
+
+  const endDate = new Date(istNow);
+  endDate.setHours(endH, endM, 0, 0);
+
+  const isWithinOperatingHours = istNow >= startDate && istNow <= endDate;
+  const currentTimeStr = `${String(istNow.getHours()).padStart(2, "0")}:${String(istNow.getMinutes()).padStart(2, "0")}`;
+
+  return {
+    isWithinOperatingHours,
+    startTime: operatingHour.startTime,
+    endTime: operatingHour.endTime,
+    currentTime: currentTimeStr,
+    message: isWithinOperatingHours
+      ? `Within ${mealWindow} operating hours (${operatingHour.startTime}-${operatingHour.endTime})`
+      : `Outside ${mealWindow} operating hours (${operatingHour.startTime}-${operatingHour.endTime})`,
   };
 }
 
@@ -302,6 +378,7 @@ export default {
   getCutoffTimes,
   getCancellationConfig,
   getFeesConfig,
+  getAutoOrderConfig,
   checkCutoffTime,
   getCurrentMealWindow,
   checkCancellationEligibility,

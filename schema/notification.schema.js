@@ -24,6 +24,9 @@ const notificationSchema = new mongoose.Schema(
           "MENU_UPDATE",
           "ADMIN_PUSH",
           "CUSTOM",
+          // Auto-order notifications
+          "AUTO_ORDER_SUCCESS",
+          "AUTO_ORDER_FAILED",
           // Driver notifications
           "BATCH_READY",
           "ORDER_READY_FOR_PICKUP",

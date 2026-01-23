@@ -78,6 +78,10 @@ export const KITCHEN_TEMPLATES = {
     title: "New Order Received!",
     body: "Order #{orderNumber} - {itemCount} item(s) for {mealWindow}",
   },
+  NEW_AUTO_ACCEPTED_ORDER: {
+    title: "Auto-Accepted Order #{orderNumber}",
+    body: "Voucher order for {mealWindow} - {itemCount} item(s). Start preparation!",
+  },
   BATCH_DISPATCHED: {
     title: "Batch Dispatched",
     body: "Batch with {orderCount} orders has been dispatched for delivery",
@@ -103,6 +107,40 @@ export const VOUCHER_TEMPLATES = {
   EXPIRY_TODAY: {
     title: "Vouchers Expire Today!",
     body: "Your {count} voucher(s) expire today! Use them now before midnight!",
+  },
+};
+
+/**
+ * Auto-order notification templates for customers
+ */
+export const AUTO_ORDER_TEMPLATES = {
+  SUCCESS: {
+    title: "Auto Order Placed!",
+    body: "Your {mealWindow} order #{orderNumber} has been automatically placed from {kitchenName}.",
+  },
+  FAILED_NO_VOUCHERS: {
+    title: "Auto Order Skipped",
+    body: "Your {mealWindow} auto-order couldn't be placed - no vouchers available. Purchase more vouchers to continue auto-ordering.",
+  },
+  FAILED_NO_ADDRESS: {
+    title: "Auto Order Skipped",
+    body: "Your {mealWindow} auto-order couldn't be placed - please set a default delivery address in your profile.",
+  },
+  FAILED_NO_ZONE: {
+    title: "Auto Order Skipped",
+    body: "Your {mealWindow} auto-order couldn't be placed - your delivery area (pincode {pincode}) is not currently serviceable.",
+  },
+  FAILED_NO_KITCHEN: {
+    title: "Auto Order Skipped",
+    body: "Your {mealWindow} auto-order couldn't be placed - no kitchen is currently serving your area.",
+  },
+  FAILED_NO_MENU: {
+    title: "Auto Order Skipped",
+    body: "Your {mealWindow} auto-order couldn't be placed - no menu items available for this meal window.",
+  },
+  FAILED_GENERIC: {
+    title: "Auto Order Failed",
+    body: "Your {mealWindow} auto-order couldn't be placed. Please try ordering manually.",
   },
 };
 
@@ -253,6 +291,7 @@ export default {
   DRIVER_TEMPLATES,
   KITCHEN_TEMPLATES,
   VOUCHER_TEMPLATES,
+  AUTO_ORDER_TEMPLATES,
   MENU_TEMPLATES,
   BATCH_REMINDER_TEMPLATES,
   ADMIN_TEMPLATES,

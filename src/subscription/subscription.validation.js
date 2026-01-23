@@ -173,6 +173,50 @@ export const unskipMealSchema = Joi.object({
     }),
 });
 
+/**
+ * Cron trigger (for dedicated lunch/dinner endpoints)
+ */
+export const cronTriggerSchema = Joi.object({
+  dryRun: Joi.boolean().default(false),
+});
+
+/**
+ * Query auto-order logs
+ */
+export const queryAutoOrderLogsSchema = Joi.object({
+  subscriptionId: Joi.string().hex().length(24),
+  userId: Joi.string().hex().length(24),
+  status: Joi.string().valid("SUCCESS", "SKIPPED", "FAILED"),
+  mealWindow: Joi.string().valid("LUNCH", "DINNER"),
+  failureCategory: Joi.string().valid(
+    "NO_VOUCHERS",
+    "NO_ADDRESS",
+    "NO_ZONE",
+    "NO_KITCHEN",
+    "KITCHEN_NOT_SERVING_ZONE",
+    "NO_MENU_ITEM",
+    "VOUCHER_REDEMPTION_FAILED",
+    "ORDER_CREATION_FAILED",
+    "SUBSCRIPTION_PAUSED",
+    "SLOT_SKIPPED",
+    "SUBSCRIPTION_EXPIRED",
+    "UNKNOWN"
+  ),
+  cronRunId: Joi.string().max(100),
+  dateFrom: Joi.date(),
+  dateTo: Joi.date(),
+  page: Joi.number().integer().min(1).default(1),
+  limit: Joi.number().integer().min(1).max(100).default(50),
+});
+
+/**
+ * Query failure summary
+ */
+export const queryFailureSummarySchema = Joi.object({
+  dateFrom: Joi.date(),
+  dateTo: Joi.date(),
+});
+
 export default {
   createPlanSchema,
   updatePlanSchema,
@@ -186,4 +230,7 @@ export default {
   pauseSubscriptionSchema,
   skipMealSchema,
   unskipMealSchema,
+  cronTriggerSchema,
+  queryAutoOrderLogsSchema,
+  queryFailureSummarySchema,
 };

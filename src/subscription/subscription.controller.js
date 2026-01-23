@@ -2,10 +2,13 @@ import SubscriptionPlan from "../../schema/subscriptionPlan.schema.js";
 import Subscription from "../../schema/subscription.schema.js";
 import Voucher from "../../schema/voucher.schema.js";
 import PaymentTransaction from "../../schema/paymentTransaction.schema.js";
+import AutoOrderLog from "../../schema/autoOrderLog.schema.js";
 import { sendResponse } from "../../utils/response.utils.js";
 import { safeAuditLog } from "../../utils/audit.utils.js";
 import paymentService from "../../services/payment.service.js";
 import razorpayProvider from "../../services/razorpay.provider.js";
+import { getAutoOrderConfig } from "../../services/config.service.js";
+import { runAutoOrderBatch } from "../../services/auto-order.service.js";
 
 /**
  * Subscription Controller
@@ -1267,48 +1270,226 @@ export const triggerAutoOrders = async (req, res) => {
 
     // Verify cron secret
     if (process.env.CRON_SECRET && cronSecret !== process.env.CRON_SECRET) {
-      return sendResponse(res, 401, "Unauthorized");
+      return sendResponse(res, 401, false, "Unauthorized");
     }
 
-    // Dynamic import to avoid circular dependencies
-    const { processAutoOrder, getEligibleSubscriptions } = await import("../../services/auto-order.service.js");
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    // Get eligible subscriptions
-    const subscriptions = await getEligibleSubscriptions(mealWindow);
-
-    const results = {
-      processed: 0,
-      ordersCreated: 0,
-      skipped: 0,
-      errors: [],
-    };
-
-    for (const subscription of subscriptions) {
-      results.processed++;
-
-      const result = await processAutoOrder(subscription, today, mealWindow, dryRun);
-
-      if (result.success) {
-        results.ordersCreated++;
-      } else if (result.skipped) {
-        results.skipped++;
-      } else {
-        results.errors.push({
-          subscriptionId: subscription._id,
-          error: result.error,
-        });
-      }
+    // Check if auto-ordering is globally enabled
+    const config = getAutoOrderConfig();
+    if (!config.enabled) {
+      return sendResponse(res, 200, true, "Auto-ordering is disabled", { disabled: true });
     }
+
+    const results = await runAutoOrderBatch(mealWindow, dryRun);
 
     console.log(`> Auto-ordering triggered for ${mealWindow}: ${results.ordersCreated} orders created`);
 
-    return sendResponse(res, 200, "Auto-ordering complete", results);
+    return sendResponse(res, 200, true, "Auto-ordering complete", results);
   } catch (error) {
     console.log("> Trigger auto-orders error:", error);
-    return sendResponse(res, 500, "Server error");
+    return sendResponse(res, 500, false, "Server error");
+  }
+};
+
+/**
+ * Trigger LUNCH auto-orders (dedicated cron endpoint)
+ * Protected by CRON_SECRET header
+ *
+ * POST /api/subscriptions/cron/lunch
+ */
+export const triggerLunchAutoOrders = async (req, res) => {
+  try {
+    const { dryRun = false } = req.body;
+    const cronSecret = req.headers["x-cron-secret"];
+
+    // Verify cron secret
+    if (process.env.CRON_SECRET && cronSecret !== process.env.CRON_SECRET) {
+      return sendResponse(res, 401, false, "Unauthorized");
+    }
+
+    // Check if auto-ordering is globally enabled
+    const config = getAutoOrderConfig();
+    if (!config.enabled) {
+      return sendResponse(res, 200, true, "Auto-ordering is disabled", { disabled: true });
+    }
+
+    const results = await runAutoOrderBatch("LUNCH", dryRun);
+
+    console.log(`> LUNCH auto-ordering triggered: ${results.ordersCreated} orders created`);
+
+    return sendResponse(res, 200, true, "LUNCH auto-ordering complete", results);
+  } catch (error) {
+    console.log("> Trigger LUNCH auto-orders error:", error);
+    return sendResponse(res, 500, false, "Server error");
+  }
+};
+
+/**
+ * Trigger DINNER auto-orders (dedicated cron endpoint)
+ * Protected by CRON_SECRET header
+ *
+ * POST /api/subscriptions/cron/dinner
+ */
+export const triggerDinnerAutoOrders = async (req, res) => {
+  try {
+    const { dryRun = false } = req.body;
+    const cronSecret = req.headers["x-cron-secret"];
+
+    // Verify cron secret
+    if (process.env.CRON_SECRET && cronSecret !== process.env.CRON_SECRET) {
+      return sendResponse(res, 401, false, "Unauthorized");
+    }
+
+    // Check if auto-ordering is globally enabled
+    const config = getAutoOrderConfig();
+    if (!config.enabled) {
+      return sendResponse(res, 200, true, "Auto-ordering is disabled", { disabled: true });
+    }
+
+    const results = await runAutoOrderBatch("DINNER", dryRun);
+
+    console.log(`> DINNER auto-ordering triggered: ${results.ordersCreated} orders created`);
+
+    return sendResponse(res, 200, true, "DINNER auto-ordering complete", results);
+  } catch (error) {
+    console.log("> Trigger DINNER auto-orders error:", error);
+    return sendResponse(res, 500, false, "Server error");
+  }
+};
+
+/**
+ * Get auto-order logs (admin)
+ *
+ * GET /api/subscriptions/auto-order-logs
+ */
+export const getAutoOrderLogs = async (req, res) => {
+  try {
+    const {
+      subscriptionId,
+      userId,
+      status,
+      mealWindow,
+      failureCategory,
+      cronRunId,
+      dateFrom,
+      dateTo,
+      page = 1,
+      limit = 50,
+    } = req.query;
+
+    const query = {};
+    if (subscriptionId) query.subscriptionId = subscriptionId;
+    if (userId) query.userId = userId;
+    if (status) query.status = status;
+    if (mealWindow) query.mealWindow = mealWindow;
+    if (failureCategory) query.failureCategory = failureCategory;
+    if (cronRunId) query.cronRunId = cronRunId;
+    if (dateFrom || dateTo) {
+      query.processedDate = {};
+      if (dateFrom) query.processedDate.$gte = new Date(dateFrom);
+      if (dateTo) query.processedDate.$lte = new Date(dateTo);
+    }
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    const [logs, total] = await Promise.all([
+      AutoOrderLog.find(query)
+        .populate("userId", "name phone")
+        .populate("subscriptionId", "planId status")
+        .populate("orderId", "orderNumber status")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(parseInt(limit)),
+      AutoOrderLog.countDocuments(query),
+    ]);
+
+    // Get summary stats for the filtered query
+    const summary = await AutoOrderLog.aggregate([
+      { $match: query },
+      {
+        $group: {
+          _id: "$status",
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const stats = { success: 0, skipped: 0, failed: 0 };
+    summary.forEach((s) => {
+      stats[s._id.toLowerCase()] = s.count;
+    });
+
+    return sendResponse(res, 200, true, "Auto-order logs", {
+      logs,
+      stats,
+      pagination: {
+        total,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        pages: Math.ceil(total / parseInt(limit)),
+      },
+    });
+  } catch (error) {
+    console.log("> Get auto-order logs error:", error);
+    return sendResponse(res, 500, false, "Server error");
+  }
+};
+
+/**
+ * Get auto-order failure summary (admin)
+ *
+ * GET /api/subscriptions/auto-order-logs/summary
+ */
+export const getAutoOrderFailureSummary = async (req, res) => {
+  try {
+    const { dateFrom, dateTo } = req.query;
+
+    // Default to last 7 days if no date range provided
+    const from = dateFrom ? new Date(dateFrom) : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const to = dateTo ? new Date(dateTo) : new Date();
+
+    const summary = await AutoOrderLog.getFailureSummary(from, to);
+
+    // Also get overall stats for the period
+    const overallStats = await AutoOrderLog.aggregate([
+      {
+        $match: {
+          createdAt: { $gte: from, $lte: to },
+        },
+      },
+      {
+        $group: {
+          _id: "$status",
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const stats = { success: 0, skipped: 0, failed: 0, total: 0 };
+    overallStats.forEach((s) => {
+      stats[s._id.toLowerCase()] = s.count;
+      stats.total += s.count;
+    });
+
+    // Group failure summary by category for easier reading
+    const failuresByCategory = {};
+    summary.forEach((item) => {
+      const category = item._id.failureCategory || "UNKNOWN";
+      const mealWindow = item._id.mealWindow;
+      if (!failuresByCategory[category]) {
+        failuresByCategory[category] = { total: 0, LUNCH: 0, DINNER: 0 };
+      }
+      failuresByCategory[category][mealWindow] = item.count;
+      failuresByCategory[category].total += item.count;
+    });
+
+    return sendResponse(res, 200, true, "Auto-order failure summary", {
+      summary: failuresByCategory,
+      overallStats: stats,
+      dateRange: { from, to },
+    });
+  } catch (error) {
+    console.log("> Get auto-order failure summary error:", error);
+    return sendResponse(res, 500, false, "Server error");
   }
 };
 
@@ -1336,4 +1517,10 @@ export default {
   skipMeal,
   unskipMeal,
   triggerAutoOrders,
+  // Cron endpoints
+  triggerLunchAutoOrders,
+  triggerDinnerAutoOrders,
+  // Admin logs
+  getAutoOrderLogs,
+  getAutoOrderFailureSummary,
 };

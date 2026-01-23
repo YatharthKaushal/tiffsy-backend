@@ -11,38 +11,120 @@ import Notification from "../schema/notification.schema.js";
  * - Platform-specific: Different payloads for Android/iOS/Web
  * - Automatic cleanup: Invalid tokens are removed automatically
  * - Delivery logging: All notifications are logged for history
+ * - React Native compatible: Uses @react-native-firebase/messaging structure
  */
 
 /**
- * Platform-specific payload builders
- * Android uses data-only messages for more control
- * iOS uses notification messages for proper display
- * Web uses standard notification messages
+ * Notification Channel Mapping for React Native Android
+ * Maps notification types to Android notification channels
+ * Channels must be created on the client side first
+ */
+const NOTIFICATION_CHANNELS = {
+  // Order related notifications - high priority
+  NEW_MANUAL_ORDER: "orders_channel",
+  NEW_AUTO_ORDER: "orders_channel",
+  NEW_AUTO_ACCEPTED_ORDER: "orders_channel",
+  ORDER_ACCEPTED: "orders_channel",
+  ORDER_REJECTED: "orders_channel",
+  ORDER_PREPARING: "orders_channel",
+  ORDER_READY: "orders_channel",
+  ORDER_PICKED_UP: "orders_channel",
+  ORDER_OUT_FOR_DELIVERY: "orders_channel",
+  ORDER_DELIVERED: "orders_channel",
+  ORDER_CANCELLED: "orders_channel",
+  ORDER_FAILED: "orders_channel",
+  AUTO_ORDER_SUCCESS: "orders_channel",
+  AUTO_ORDER_FAILED: "subscriptions_channel",
+
+  // Subscription/Voucher related
+  VOUCHER_EXPIRY_REMINDER: "subscriptions_channel",
+  SUBSCRIPTION_CREATED: "subscriptions_channel",
+  SUBSCRIPTION_EXPIRING: "subscriptions_channel",
+
+  // Delivery/Batch related - for drivers
+  BATCH_READY: "delivery_channel",
+  BATCH_ASSIGNED: "delivery_channel",
+  DELIVERY_ASSIGNED: "delivery_channel",
+
+  // General/Promotional
+  MENU_UPDATE: "general_channel",
+  PROMOTIONAL: "general_channel",
+  SYSTEM_UPDATE: "general_channel",
+  ADMIN_PUSH: "general_channel",
+  CUSTOM: "general_channel",
+};
+
+/**
+ * Get the appropriate notification channel for a notification type
+ * @param {string} type - Notification type
+ * @returns {string} Channel ID
+ */
+function getChannelId(type) {
+  return NOTIFICATION_CHANNELS[type] || "default_channel";
+}
+
+/**
+ * Determine notification priority based on channel
+ * @param {string} channelId - Notification channel ID
+ * @returns {string} "high" or "default"
+ */
+function getNotificationPriority(channelId) {
+  const highPriorityChannels = ["orders_channel", "delivery_channel", "subscriptions_channel"];
+  return highPriorityChannels.includes(channelId) ? "high" : "default";
+}
+
+/**
+ * Platform-specific payload builders for React Native
+ * Optimized for @react-native-firebase/messaging
  */
 const buildPayload = {
-  ANDROID: (title, body, data) => ({
-    data: {
-      title,
-      body,
-      ...Object.fromEntries(
-        Object.entries(data || {}).map(([k, v]) => [k, String(v)])
-      ),
-      click_action: "FLUTTER_NOTIFICATION_CLICK",
-    },
-    android: {
-      priority: "high",
-      ttl: 86400 * 1000, // 24 hours in ms
-    },
-  }),
+  /**
+   * Android payload for React Native
+   * Uses notification + data message with channelId at android level
+   */
+  ANDROID: (title, body, data, type) => {
+    const channelId = getChannelId(type);
+    const priority = getNotificationPriority(channelId);
 
-  IOS: (title, body, data) => ({
+    return {
+      notification: {
+        title,
+        body,
+      },
+      data: {
+        ...Object.fromEntries(
+          Object.entries(data || {}).map(([k, v]) => [k, String(v)])
+        ),
+        type: type || "GENERAL",
+        channelId, // Included in data for client-side use
+      },
+      android: {
+        channelId, // React Native Firebase uses this for notification channel
+        priority,
+        ttl: 86400 * 1000, // 24 hours in ms
+        notification: {
+          sound: "default",
+          priority: priority === "high" ? "high" : "default",
+        },
+      },
+    };
+  },
+
+  /**
+   * iOS payload for React Native
+   * Uses notification + data message with APNs configuration
+   */
+  IOS: (title, body, data, type) => ({
     notification: {
       title,
       body,
     },
-    data: Object.fromEntries(
-      Object.entries(data || {}).map(([k, v]) => [k, String(v)])
-    ),
+    data: {
+      ...Object.fromEntries(
+        Object.entries(data || {}).map(([k, v]) => [k, String(v)])
+      ),
+      type: type || "GENERAL",
+    },
     apns: {
       payload: {
         aps: {
@@ -54,14 +136,20 @@ const buildPayload = {
     },
   }),
 
-  WEB: (title, body, data) => ({
+  /**
+   * Web payload (for Admin Portal if needed)
+   */
+  WEB: (title, body, data, type) => ({
     notification: {
       title,
       body,
     },
-    data: Object.fromEntries(
-      Object.entries(data || {}).map(([k, v]) => [k, String(v)])
-    ),
+    data: {
+      ...Object.fromEntries(
+        Object.entries(data || {}).map(([k, v]) => [k, String(v)])
+      ),
+      type: type || "GENERAL",
+    },
     webpush: {
       fcmOptions: {
         link: data?.webLink || "/",
@@ -95,19 +183,20 @@ function isInvalidTokenError(error) {
  * @param {string} title - Notification title
  * @param {string} body - Notification body
  * @param {Object} data - Optional payload data for deep linking
+ * @param {string} type - Notification type for channel mapping
  * @returns {Promise<{success: boolean, messageId?: string, error?: string, shouldRemoveToken?: boolean}>}
  */
-async function sendToToken(token, deviceType, title, body, data = {}) {
+async function sendToToken(token, deviceType, title, body, data = {}, type = "GENERAL") {
   try {
     const payloadBuilder = buildPayload[deviceType] || buildPayload.ANDROID;
     const message = {
       token,
-      ...payloadBuilder(title, body, data),
+      ...payloadBuilder(title, body, data, type),
     };
 
     const response = await firebaseAdmin.messaging().send(message);
 
-    console.log("> FCM sent successfully:", { messageId: response, deviceType });
+    console.log("> FCM sent successfully:", { messageId: response, deviceType, type, channelId: getChannelId(type) });
 
     return { success: true, messageId: response };
   } catch (error) {
@@ -115,6 +204,7 @@ async function sendToToken(token, deviceType, title, body, data = {}) {
       errorCode: error.code,
       errorMessage: error.message,
       deviceType,
+      type,
     });
 
     return {
@@ -182,7 +272,8 @@ async function _sendToUserAsync(userId, type, title, body, options = {}) {
           tokenInfo.deviceType,
           title,
           body,
-          data
+          data,
+          type // Pass notification type for channel mapping
         );
 
         return {

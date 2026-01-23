@@ -108,6 +108,7 @@ function sendFailureNotification(userId, failureCategory, mealWindow, context = 
       type: "AUTO_ORDER_FAILED",
       failureCategory,
       mealWindow,
+      message: body, // Include the notification body as message for frontend use
     },
     entityType: "SUBSCRIPTION",
   });

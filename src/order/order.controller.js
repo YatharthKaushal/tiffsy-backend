@@ -1421,8 +1421,8 @@ export async function acceptOrder(req, res) {
     // Notify customer about order acceptance
     const notification = getOrderStatusNotification("ACCEPTED", order);
     if (notification) {
-      sendToUser(order.userId, "ORDER_STATUS_CHANGE", notification.title, notification.body, {
-        data: { orderId: order._id.toString(), orderNumber: order.orderNumber, status: "PREPARING" },
+      sendToUser(order.userId, "ORDER_ACCEPTED", notification.title, notification.body, {
+        data: { orderId: order._id.toString(), orderNumber: order.orderNumber, status: "ACCEPTED" },
         entityType: "ORDER",
         entityId: order._id,
       });
@@ -1517,7 +1517,7 @@ export async function rejectOrder(req, res) {
     // Notify customer about order rejection
     const notification = getOrderStatusNotification("REJECTED", order, reason);
     if (notification) {
-      sendToUser(order.userId, "ORDER_STATUS_CHANGE", notification.title, notification.body, {
+      sendToUser(order.userId, "ORDER_REJECTED", notification.title, notification.body, {
         data: { orderId: order._id.toString(), orderNumber: order.orderNumber, status: "REJECTED" },
         entityType: "ORDER",
         entityId: order._id,
@@ -1619,7 +1619,7 @@ export async function cancelOrder(req, res) {
     // Notify customer about order cancellation
     const notification = getOrderStatusNotification("CANCELLED", order, reason);
     if (notification) {
-      sendToUser(order.userId, "ORDER_STATUS_CHANGE", notification.title, notification.body, {
+      sendToUser(order.userId, "ORDER_CANCELLED", notification.title, notification.body, {
         data: { orderId: order._id.toString(), orderNumber: order.orderNumber, status: "CANCELLED" },
         entityType: "ORDER",
         entityId: order._id,
@@ -1685,7 +1685,8 @@ export async function updateOrderStatus(req, res) {
     if (["READY", "PREPARING"].includes(status)) {
       const notification = getOrderStatusNotification(status, order);
       if (notification) {
-        sendToUser(order.userId, "ORDER_STATUS_CHANGE", notification.title, notification.body, {
+        const notificationType = `ORDER_${status}`; // ORDER_READY or ORDER_PREPARING
+        sendToUser(order.userId, notificationType, notification.title, notification.body, {
           data: { orderId: order._id.toString(), orderNumber: order.orderNumber, status },
           entityType: "ORDER",
           entityId: order._id,
@@ -1804,7 +1805,8 @@ export async function updateDeliveryStatus(req, res) {
     // Notify customer about delivery status change
     const notification = getOrderStatusNotification(finalStatus, order);
     if (notification) {
-      sendToUser(order.userId, "ORDER_STATUS_CHANGE", notification.title, notification.body, {
+      const notificationType = `ORDER_${finalStatus}`; // ORDER_PICKED_UP, ORDER_OUT_FOR_DELIVERY, ORDER_DELIVERED, ORDER_FAILED
+      sendToUser(order.userId, notificationType, notification.title, notification.body, {
         data: { orderId: order._id.toString(), orderNumber: order.orderNumber, status: finalStatus },
         entityType: "ORDER",
         entityId: order._id,

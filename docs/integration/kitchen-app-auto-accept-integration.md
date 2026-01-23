@@ -96,6 +96,10 @@ The order object now includes:
 
 ## Notification Changes
 
+### FCM Payload Structure (React Native)
+
+The backend uses `@react-native-firebase/messaging` compatible payloads with proper Android notification channels.
+
 ### Push Notification Types
 
 #### 1. NEW_MANUAL_ORDER (Existing)
@@ -103,13 +107,24 @@ Sent when order requires manual acceptance.
 
 ```json
 {
-  "type": "NEW_MANUAL_ORDER",
-  "title": "New Order Received!",
-  "body": "Order #ORD-123456 - 2 item(s) for LUNCH",
+  "notification": {
+    "title": "New Order Received!",
+    "body": "Order #ORD-123456 - 2 item(s) for LUNCH"
+  },
   "data": {
-    "orderId": "...",
+    "type": "NEW_MANUAL_ORDER",
+    "orderId": "64f8a3c9e1b2c3d4e5f6g7h8",
     "orderNumber": "ORD-123456",
-    "autoAccepted": false
+    "autoAccepted": "false",
+    "channelId": "orders_channel"
+  },
+  "android": {
+    "channelId": "orders_channel",
+    "priority": "high",
+    "notification": {
+      "sound": "default",
+      "priority": "high"
+    }
   }
 }
 ```
@@ -119,35 +134,106 @@ Sent when order is auto-accepted.
 
 ```json
 {
-  "type": "NEW_AUTO_ACCEPTED_ORDER",
-  "title": "Auto-Accepted Order #ORD-123456",
-  "body": "Voucher order for LUNCH - 2 item(s). Start preparation!",
+  "notification": {
+    "title": "Auto-Accepted Order #ORD-123456",
+    "body": "Voucher order for LUNCH - 2 item(s). Start preparation!"
+  },
   "data": {
-    "orderId": "...",
+    "type": "NEW_AUTO_ACCEPTED_ORDER",
+    "orderId": "64f8a3c9e1b2c3d4e5f6g7h8",
     "orderNumber": "ORD-123456",
-    "autoAccepted": true
+    "autoAccepted": "true",
+    "channelId": "orders_channel"
+  },
+  "android": {
+    "channelId": "orders_channel",
+    "priority": "high",
+    "notification": {
+      "sound": "default",
+      "priority": "high"
+    }
   }
 }
 ```
 
-### Handling Notifications
+### Android Notification Channels
+
+Create these channels in your React Native app on startup:
 
 ```javascript
-// Example notification handler
-function handleOrderNotification(notification) {
-  const { type, data } = notification;
+// NotificationService.js
+import notifee from '@notifee/react-native';
+
+async function createNotificationChannels() {
+  await notifee.createChannel({
+    id: 'orders_channel',
+    name: 'Orders',
+    description: 'New orders and order updates',
+    importance: AndroidImportance.HIGH,
+    sound: 'default',
+    vibration: true,
+  });
+
+  await notifee.createChannel({
+    id: 'delivery_channel',
+    name: 'Deliveries',
+    description: 'Delivery and batch notifications',
+    importance: AndroidImportance.HIGH,
+    sound: 'default',
+  });
+
+  await notifee.createChannel({
+    id: 'default_channel',
+    name: 'General',
+    description: 'General notifications',
+    importance: AndroidImportance.DEFAULT,
+  });
+}
+```
+
+### Handling Notifications (React Native)
+
+```javascript
+import messaging from '@react-native-firebase/messaging';
+
+// Background/Quit state handler
+messaging().setBackgroundMessageHandler(async (remoteMessage) => {
+  console.log('Background message:', remoteMessage);
+  handleOrderNotification(remoteMessage);
+});
+
+// Foreground handler
+useEffect(() => {
+  const unsubscribe = messaging().onMessage(async (remoteMessage) => {
+    console.log('Foreground message:', remoteMessage);
+    handleOrderNotification(remoteMessage);
+  });
+  return unsubscribe;
+}, []);
+
+// Notification handler
+function handleOrderNotification(remoteMessage) {
+  const { data } = remoteMessage;
+  const type = data?.type;
 
   if (type === "NEW_AUTO_ACCEPTED_ORDER") {
     // Order already accepted - show "Start Preparation" UI
     showAutoAcceptedOrderAlert(data);
     refreshOrderList();
-    // Optionally play different sound/vibration
   } else if (type === "NEW_MANUAL_ORDER") {
     // Order needs acceptance - show Accept/Reject UI
     showNewOrderAlert(data);
     refreshOrderList();
   }
 }
+```
+
+### Data Field Types
+
+> **Important**: All values in `data` are strings. Parse as needed:
+
+```javascript
+const autoAccepted = data.autoAccepted === "true"; // Convert string to boolean
 ```
 
 ---

@@ -18,22 +18,45 @@ const notificationSchema = new mongoose.Schema(
       required: true,
       enum: {
         values: [
-          // Customer notifications
-          "ORDER_STATUS_CHANGE",
+          // Customer order status notifications
+          "ORDER_STATUS_CHANGE", // Legacy catch-all
+          "ORDER_ACCEPTED",
+          "ORDER_REJECTED",
+          "ORDER_PREPARING",
+          "ORDER_READY",
+          "ORDER_PICKED_UP",
+          "ORDER_OUT_FOR_DELIVERY",
+          "ORDER_DELIVERED",
+          "ORDER_CANCELLED",
+          "ORDER_FAILED",
+
+          // Voucher/Subscription notifications
           "VOUCHER_EXPIRY_REMINDER",
-          "MENU_UPDATE",
-          "ADMIN_PUSH",
-          "CUSTOM",
+          "SUBSCRIPTION_CREATED",
+          "SUBSCRIPTION_EXPIRING",
+
           // Auto-order notifications
           "AUTO_ORDER_SUCCESS",
           "AUTO_ORDER_FAILED",
-          // Driver notifications
-          "BATCH_READY",
-          "ORDER_READY_FOR_PICKUP",
+
           // Kitchen notifications
           "NEW_AUTO_ORDER",
           "NEW_MANUAL_ORDER",
+          "NEW_AUTO_ACCEPTED_ORDER",
           "BATCH_REMINDER",
+
+          // Driver notifications
+          "BATCH_READY",
+          "BATCH_ASSIGNED",
+          "DELIVERY_ASSIGNED",
+          "ORDER_READY_FOR_PICKUP",
+
+          // General notifications
+          "MENU_UPDATE",
+          "PROMOTIONAL",
+          "SYSTEM_UPDATE",
+          "ADMIN_PUSH",
+          "CUSTOM",
         ],
         message: "Invalid notification type",
       },

@@ -460,15 +460,24 @@ export const updateFcmToken = async (req, res) => {
     }
 
     // Use atomic operations to avoid version conflicts from concurrent requests
-    // First, remove any existing tokens with same token string or deviceId
-    const pullQuery = { $or: [{ "fcmTokens.token": fcmToken }] };
-    if (deviceId) {
-      pullQuery.$or.push({ "fcmTokens.deviceId": deviceId });
-    }
-
+    // First, remove any existing tokens with same token string
     await User.updateOne(
       { _id: userId },
-      { $pull: { fcmTokens: pullQuery } }
+      { $pull: { fcmTokens: { token: fcmToken } } }
+    );
+
+    // Also remove any tokens with same deviceId (user logged in on same device again)
+    if (deviceId) {
+      await User.updateOne(
+        { _id: userId },
+        { $pull: { fcmTokens: { deviceId: deviceId } } }
+      );
+    }
+
+    // Remove this token from other users (device switched accounts)
+    await User.updateMany(
+      { _id: { $ne: userId }, "fcmTokens.token": fcmToken },
+      { $pull: { fcmTokens: { token: fcmToken } } }
     );
 
     // Then add the new token

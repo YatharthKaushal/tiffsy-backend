@@ -312,9 +312,15 @@ const selectPrimaryKitchen = (kitchens) => {
 /**
  * Helper: Build menu items response for a kitchen
  * @param {string} kitchenId - Kitchen ID
+ * @param {Object} kitchen - Kitchen document with operatingHours (optional, fetched if not provided)
  * @returns {Object} Menu structure { mealMenu, onDemandMenu }
  */
-const buildMenuForKitchen = async (kitchenId) => {
+const buildMenuForKitchen = async (kitchenId, kitchen = null) => {
+  // Fetch kitchen with operatingHours if not provided
+  if (!kitchen) {
+    kitchen = await Kitchen.findById(kitchenId).select("operatingHours");
+  }
+
   const menuItems = await MenuItem.find({
     kitchenId,
     status: "ACTIVE",
@@ -353,7 +359,8 @@ const buildMenuForKitchen = async (kitchenId) => {
     };
 
     if (item.menuType === "MEAL_MENU") {
-      const cutoffInfo = checkCutoffTime(item.mealWindow);
+      // Use kitchen's operating hours for cutoff time
+      const cutoffInfo = checkCutoffTime(item.mealWindow, kitchen);
       itemResponse.cutoffTime = cutoffInfo.cutoffTime;
       itemResponse.isPastCutoff = cutoffInfo.isPastCutoff;
       itemResponse.canUseVoucher = !cutoffInfo.isPastCutoff;
@@ -465,8 +472,8 @@ export const getHomeFeed = async (req, res) => {
     // Get current meal window info
     const mealWindowInfo = getCurrentMealWindow();
 
-    // Build menu for selected kitchen
-    const { mealMenu, onDemandMenu } = await buildMenuForKitchen(selectedKitchen._id);
+    // Build menu for selected kitchen (pass kitchen for operating hours)
+    const { mealMenu, onDemandMenu } = await buildMenuForKitchen(selectedKitchen._id, selectedKitchen);
 
     // Get user's voucher balance
     const lunchVouchers = await getAvailableVoucherCount(userId, "LUNCH");
@@ -588,8 +595,8 @@ export const getMealMenu = async (req, res) => {
       });
     }
 
-    // Get cutoff info
-    const cutoffInfo = checkCutoffTime(normalizedMealWindow);
+    // Get cutoff info using kitchen's operating hours
+    const cutoffInfo = checkCutoffTime(normalizedMealWindow, kitchen);
 
     // Get user's vouchers for this meal window
     const availableVouchers = await getAvailableVoucherCount(userId, normalizedMealWindow);

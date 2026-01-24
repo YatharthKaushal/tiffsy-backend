@@ -5,7 +5,7 @@ import Kitchen from "../../schema/kitchen.schema.js";
 import Zone from "../../schema/zone.schema.js";
 import { sendResponse } from "../../utils/response.utils.js";
 import { safeAuditCreate } from "../../utils/audit.utils.js";
-import { checkCutoffTime, getCutoffTimes } from "../../services/config.service.js";
+import { checkCutoffTime } from "../../services/config.service.js";
 import { sendToRole, sendToUserIds } from "../../services/notification.service.js";
 import { DRIVER_TEMPLATES, BATCH_REMINDER_TEMPLATES, buildFromTemplate } from "../../services/notification-templates.service.js";
 import User from "../../schema/user.schema.js";
@@ -1681,27 +1681,23 @@ export async function sendKitchenBatchReminder(req, res) {
       });
     }
 
-    // Get cutoff times
-    const cutoffTimes = getCutoffTimes();
-    const cutoffTime = cutoffTimes[mealWindow];
-
-    // Calculate minutes until cutoff
-    const now = new Date();
-    const istOffset = 5.5 * 60 * 60 * 1000;
-    const istNow = new Date(now.getTime() + (now.getTimezoneOffset() * 60 * 1000) + istOffset);
-    const [cutoffHour, cutoffMin] = cutoffTime.split(":").map(Number);
-    const cutoffDate = new Date(istNow);
-    cutoffDate.setHours(cutoffHour, cutoffMin, 0, 0);
-    const minutesRemaining = Math.max(0, Math.round((cutoffDate - istNow) / (60 * 1000)));
-
     let kitchensNotified = 0;
     const notificationResults = [];
 
     for (const kitchenData of pendingByKitchen) {
       try {
-        // Get kitchen name
-        const kitchen = await Kitchen.findById(kitchenData._id).select("name");
+        // Get kitchen with operatingHours for cutoff calculation
+        const kitchen = await Kitchen.findById(kitchenData._id).select("name operatingHours");
         if (!kitchen) continue;
+
+        // Calculate minutes until cutoff using kitchen's operating hours
+        const cutoffInfo = checkCutoffTime(mealWindow, kitchen);
+        const now = new Date();
+        const istOffset = 5.5 * 60 * 60 * 1000;
+        const istNow = new Date(now.getTime() + (now.getTimezoneOffset() * 60 * 1000) + istOffset);
+        const minutesRemaining = cutoffInfo.cutoffDate
+          ? Math.max(0, Math.round((cutoffInfo.cutoffDate - istNow) / (60 * 1000)))
+          : 0;
 
         // Get kitchen staff for this kitchen
         const kitchenStaff = await User.find({

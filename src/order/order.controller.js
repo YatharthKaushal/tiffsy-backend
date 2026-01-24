@@ -7,6 +7,7 @@ import CustomerAddress from "../../schema/customerAddress.schema.js";
 import Voucher from "../../schema/voucher.schema.js";
 import Coupon from "../../schema/coupon.schema.js";
 import Refund from "../../schema/refund.schema.js";
+import DeliveryAssignment from "../../schema/deliveryAssignment.schema.js";
 import { sendResponse } from "../../utils/response.utils.js";
 import { safeAuditCreate } from "../../utils/audit.utils.js";
 import { createLogger } from "../../utils/logger.utils.js";
@@ -1070,6 +1071,15 @@ export async function getOrderById(req, res) {
       }).select("voucherCode valueType value");
     }
 
+    // Get delivery OTP for customer when order is out for delivery
+    let deliveryOtp = null;
+    if (isOwner && ["OUT_FOR_DELIVERY", "PICKED_UP"].includes(order.status)) {
+      const assignment = await DeliveryAssignment.findOne({ orderId: id });
+      if (assignment?.proofOfDelivery?.otp) {
+        deliveryOtp = assignment.proofOfDelivery.otp;
+      }
+    }
+
     return sendResponse(res, 200, true, "Order retrieved", {
       order,
       kitchen: order.kitchenId,
@@ -1079,6 +1089,7 @@ export async function getOrderById(req, res) {
         batch: order.batchId,
         estimatedTime: order.estimatedDeliveryTime,
       },
+      deliveryOtp,
       vouchersUsed,
       couponApplied: order.discount?.couponCode
         ? {
@@ -1112,6 +1123,15 @@ export async function trackOrder(req, res) {
       return sendResponse(res, 404, false, "Order not found");
     }
 
+    // Get delivery OTP when order is out for delivery
+    let deliveryOtp = null;
+    if (["OUT_FOR_DELIVERY", "PICKED_UP"].includes(order.status)) {
+      const assignment = await DeliveryAssignment.findOne({ orderId: id });
+      if (assignment?.proofOfDelivery?.otp) {
+        deliveryOtp = assignment.proofOfDelivery.otp;
+      }
+    }
+
     return sendResponse(res, 200, true, "Order tracking info", {
       status: order.status,
       statusMessage: getStatusDisplay(order.status),
@@ -1129,6 +1149,7 @@ export async function trackOrder(req, res) {
           }
         : null,
       estimatedDelivery: order.estimatedDeliveryTime,
+      deliveryOtp,
       canContactDriver: order.status === "OUT_FOR_DELIVERY" && order.driverId,
       canContactKitchen: ["PLACED", "ACCEPTED", "PREPARING"].includes(
         order.status

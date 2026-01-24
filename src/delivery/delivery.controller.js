@@ -821,31 +821,46 @@ export async function updateDeliveryStatus(req, res) {
       return sendResponse(res, 404, false, "Order not found");
     }
 
-    // Update assignment status
-    await assignment.updateStatus(status);
-
-    // Handle specific statuses
+    // Handle DELIVERED status - verify OTP BEFORE updating status
     if (status === "DELIVERED") {
-      if (proofOfDelivery) {
-        // Verify OTP before marking as delivered
-        if (proofOfDelivery.type === "OTP") {
-          const otpVerified = await assignment.verifyOtp(proofOfDelivery.otp);
-          if (!otpVerified) {
-            return sendResponse(res, 400, false, "Invalid OTP. Please enter the correct OTP to confirm delivery.");
-          }
+      if (proofOfDelivery?.type === "OTP") {
+        // Check if OTP was generated for this assignment
+        if (!assignment.proofOfDelivery?.otp) {
+          console.log(`> OTP verification failed for order ${orderId}: OTP was not generated for this delivery`);
+          return sendResponse(res, 400, false, "OTP was not generated for this delivery. Please contact support.");
         }
 
+        // Log for debugging
+        console.log(`> OTP verification for order ${orderId}: stored="${assignment.proofOfDelivery.otp}", received="${proofOfDelivery.otp}"`);
+
+        // Verify OTP matches (compare as strings)
+        const storedOtp = String(assignment.proofOfDelivery.otp);
+        const receivedOtp = String(proofOfDelivery.otp);
+
+        if (storedOtp !== receivedOtp) {
+          console.log(`> OTP mismatch for order ${orderId}: expected "${storedOtp}", got "${receivedOtp}"`);
+          return sendResponse(res, 400, false, "Invalid OTP. Please enter the correct OTP to confirm delivery.");
+        }
+
+        // OTP verified - update proofOfDelivery fields (don't overwrite the stored OTP)
+        assignment.proofOfDelivery.otpVerified = true;
+        assignment.proofOfDelivery.verifiedAt = new Date();
+        assignment.proofOfDelivery.verifiedBy = "CUSTOMER";
+        await assignment.save();
+
+        console.log(`> OTP verified successfully for order ${orderId}`);
+      } else if (proofOfDelivery) {
+        // Non-OTP proof of delivery (signature, photo)
         assignment.proofOfDelivery = {
           type: proofOfDelivery.type,
-          otp: proofOfDelivery.otp,
           signatureUrl: proofOfDelivery.signatureUrl,
           photoUrl: proofOfDelivery.photoUrl,
           verifiedAt: new Date(),
         };
-
         await assignment.save();
       }
 
+      // Set proof of delivery on order
       order.proofOfDelivery = {
         type: proofOfDelivery?.type,
         value:
@@ -855,6 +870,9 @@ export async function updateDeliveryStatus(req, res) {
         verifiedAt: new Date(),
       };
     }
+
+    // Now update assignment status (after OTP verification for DELIVERED)
+    await assignment.updateStatus(status);
 
     if (status === "FAILED") {
       assignment.failureReason = failureReason;

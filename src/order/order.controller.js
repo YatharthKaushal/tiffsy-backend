@@ -2132,6 +2132,22 @@ export async function adminUpdateStatus(req, res) {
       reason: `Admin status update: ${previousStatus} → ${status}`,
     });
 
+    // Send notification to customer about status change
+    const notificationType = `ORDER_${status}`;
+    const notification = getOrderStatusNotification(status, order, reason);
+    if (notification) {
+      sendToUser(order.userId, notificationType, notification.title, notification.body, {
+        data: {
+          orderId: order._id.toString(),
+          orderNumber: order.orderNumber,
+          status: status,
+          previousStatus: previousStatus,
+        },
+        entityType: "ORDER",
+        entityId: order._id,
+      });
+    }
+
     return sendResponse(res, 200, true, "Order status updated", {
       order,
       previousStatus,

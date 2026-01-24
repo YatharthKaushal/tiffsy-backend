@@ -743,8 +743,8 @@ export async function createOrder(req, res) {
     });
     log.response("createOrder", 201, true, duration);
 
-    // Notify kitchen staff about new order (for MEAL_MENU orders)
-    if (menuType === "MEAL_MENU") {
+    // Notify kitchen staff about new order (for all order types)
+    {
       const templateKey = autoAcceptCheck.shouldAutoAccept
         ? "NEW_AUTO_ACCEPTED_ORDER"
         : "NEW_MANUAL_ORDER";
@@ -752,7 +752,7 @@ export async function createOrder(req, res) {
       const { title, body } = buildFromTemplate(template, {
         orderNumber: order.orderNumber,
         itemCount: order.items.length,
-        mealWindow: mealWindow,
+        mealWindow: mealWindow || "ON_DEMAND",
       });
       sendToRole("KITCHEN_STAFF", templateKey, title, body, {
         kitchenId: kitchenId,
@@ -760,6 +760,7 @@ export async function createOrder(req, res) {
           orderId: order._id.toString(),
           orderNumber: order.orderNumber,
           autoAccepted: autoAcceptCheck.shouldAutoAccept,
+          menuType: menuType,
         },
         entityType: "ORDER",
         entityId: order._id,

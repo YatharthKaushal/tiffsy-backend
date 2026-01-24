@@ -20,10 +20,7 @@ import Notification from "../schema/notification.schema.js";
  * Channels must be created on the client side first
  */
 const NOTIFICATION_CHANNELS = {
-  // Order related notifications - high priority
-  NEW_MANUAL_ORDER: "orders_channel",
-  NEW_AUTO_ORDER: "orders_channel",
-  NEW_AUTO_ACCEPTED_ORDER: "orders_channel",
+  // Order related notifications - high priority (for customers)
   ORDER_ACCEPTED: "orders_channel",
   ORDER_REJECTED: "orders_channel",
   ORDER_PREPARING: "orders_channel",
@@ -35,6 +32,12 @@ const NOTIFICATION_CHANNELS = {
   ORDER_FAILED: "orders_channel",
   AUTO_ORDER_SUCCESS: "orders_channel",
   AUTO_ORDER_FAILED: "subscriptions_channel",
+
+  // Kitchen notifications - high priority (for kitchen staff)
+  NEW_MANUAL_ORDER: "kitchen_channel",
+  NEW_AUTO_ORDER: "kitchen_channel",
+  NEW_AUTO_ACCEPTED_ORDER: "kitchen_channel",
+  BATCH_REMINDER: "kitchen_channel",
 
   // Subscription/Voucher related
   VOUCHER_EXPIRY_REMINDER: "subscriptions_channel",
@@ -69,7 +72,7 @@ function getChannelId(type) {
  * @returns {string} "high" or "default"
  */
 function getNotificationPriority(channelId) {
-  const highPriorityChannels = ["orders_channel", "delivery_channel", "subscriptions_channel"];
+  const highPriorityChannels = ["orders_channel", "delivery_channel", "subscriptions_channel", "kitchen_channel"];
   return highPriorityChannels.includes(channelId) ? "high" : "default";
 }
 

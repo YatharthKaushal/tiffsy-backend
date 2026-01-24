@@ -602,15 +602,28 @@ export async function acceptBatch(req, res) {
     // Create delivery assignments
     await createDeliveryAssignments(batch._id, batch.orderIds, driverId);
 
-    // Get order details
+    // Get order details (include userId for notifications)
     const orders = await Order.find({ _id: { $in: batch.orderIds } }).select(
-      "orderNumber deliveryAddress items status"
+      "orderNumber deliveryAddress items status userId"
     );
 
     // Get kitchen address
     const kitchen = await Kitchen.findById(batch.kitchenId).select(
       "name address"
     );
+
+    // Send notification to all customers that driver is on the way
+    for (const order of orders) {
+      sendToUser(order.userId, "ORDER_OUT_FOR_DELIVERY", "Driver On The Way!", `Your order #${order.orderNumber} has been picked up by a delivery partner and is on the way!`, {
+        data: {
+          orderId: order._id.toString(),
+          orderNumber: order.orderNumber,
+          status: "DISPATCHED",
+        },
+        entityType: "ORDER",
+        entityId: order._id,
+      });
+    }
 
     return sendResponse(res, 200, true, "Batch accepted", {
       batch,
@@ -814,6 +827,14 @@ export async function updateDeliveryStatus(req, res) {
     // Handle specific statuses
     if (status === "DELIVERED") {
       if (proofOfDelivery) {
+        // Verify OTP before marking as delivered
+        if (proofOfDelivery.type === "OTP") {
+          const otpVerified = await assignment.verifyOtp(proofOfDelivery.otp);
+          if (!otpVerified) {
+            return sendResponse(res, 400, false, "Invalid OTP. Please enter the correct OTP to confirm delivery.");
+          }
+        }
+
         assignment.proofOfDelivery = {
           type: proofOfDelivery.type,
           otp: proofOfDelivery.otp,
@@ -821,10 +842,6 @@ export async function updateDeliveryStatus(req, res) {
           photoUrl: proofOfDelivery.photoUrl,
           verifiedAt: new Date(),
         };
-
-        if (proofOfDelivery.type === "OTP") {
-          await assignment.verifyOtp(proofOfDelivery.otp);
-        }
 
         await assignment.save();
       }
@@ -1185,6 +1202,23 @@ export async function dispatchMyKitchenBatches(req, res) {
         batchNumber: batch.batchNumber,
         status: batch.status,
         orderCount: batch.orderIds.length,
+      });
+    }
+
+    // Notify all active drivers about available batches
+    if (dispatchedBatches.length > 0) {
+      const totalOrders = dispatchedBatches.reduce((sum, b) => sum + b.orderCount, 0);
+      const { title, body } = buildFromTemplate(DRIVER_TEMPLATES.BATCH_READY, {
+        orderCount: totalOrders,
+        kitchenName: kitchen.name,
+      });
+      sendToRole("DRIVER", "BATCH_READY", title, body, {
+        data: {
+          kitchenId: kitchenId.toString(),
+          mealWindow,
+          batchCount: dispatchedBatches.length.toString(),
+        },
+        entityType: "BATCH",
       });
     }
 

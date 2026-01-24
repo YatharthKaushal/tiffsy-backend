@@ -8,46 +8,16 @@ import {
   redeemVouchersWithTransaction,
   restoreVouchersForOrder,
 } from "../../services/voucher.service.js";
+import {
+  checkCutoffTime,
+  getCutoffTimes as getSystemCutoffTimes,
+  updateConfig,
+} from "../../services/config.service.js";
 
 /**
  * Voucher Controller
  * Handles voucher redemption, restoration, and management
  */
-
-// Default cutoff times (HH:mm format in IST)
-const DEFAULT_CUTOFF_TIMES = {
-  LUNCH: "11:00",
-  DINNER: "21:00",
-};
-
-// In-memory config (would be in DB in production)
-let CUTOFF_CONFIG = { ...DEFAULT_CUTOFF_TIMES };
-
-/**
- * Helper: Check if current time is past cutoff for meal window
- * @param {String} mealWindow - LUNCH or DINNER
- * @returns {Object} { isPastCutoff, cutoffTime, message }
- */
-const checkCutoff = (mealWindow) => {
-  const now = new Date();
-  const cutoffTime =
-    CUTOFF_CONFIG[mealWindow] || DEFAULT_CUTOFF_TIMES[mealWindow];
-  const [cutoffHour, cutoffMin] = cutoffTime.split(":").map(Number);
-
-  const cutoffDate = new Date();
-  cutoffDate.setHours(cutoffHour, cutoffMin, 0, 0);
-
-  const isPastCutoff = now >= cutoffDate;
-
-  return {
-    isPastCutoff,
-    cutoffTime,
-    currentTime: now.toTimeString().slice(0, 5),
-    message: isPastCutoff
-      ? `${mealWindow} ordering closed. Cutoff was ${cutoffTime}.`
-      : `${mealWindow} orders open until ${cutoffTime}`,
-  };
-};
 
 /**
  * Helper: Get available vouchers for user (FIFO by expiry)
@@ -150,9 +120,10 @@ export const getVoucherBalance = async (req, res) => {
       };
     }
 
-    // Check cutoff times
-    const lunchCutoff = checkCutoff("LUNCH");
-    const dinnerCutoff = checkCutoff("DINNER");
+    // Check cutoff times (using system defaults since no specific kitchen context)
+    const lunchCutoff = checkCutoffTime("LUNCH");
+    const dinnerCutoff = checkCutoffTime("DINNER");
+    const systemCutoffTimes = getSystemCutoffTimes();
 
     // Determine next available window
     let nextCutoff;
@@ -163,7 +134,7 @@ export const getVoucherBalance = async (req, res) => {
     } else {
       nextCutoff = {
         mealWindow: "TOMORROW_LUNCH",
-        cutoffTime: CUTOFF_CONFIG.LUNCH,
+        cutoffTime: systemCutoffTimes.LUNCH,
         isPastCutoff: true,
         message: "Ordering opens tomorrow for lunch",
       };
@@ -346,14 +317,14 @@ export const checkVoucherEligibility = async (req, res) => {
       });
     }
 
-    // Verify kitchen exists and is active
-    const kitchen = await Kitchen.findById(kitchenId);
+    // Verify kitchen exists and is active (include operatingHours for cutoff check)
+    const kitchen = await Kitchen.findById(kitchenId).select("status operatingHours");
     if (!kitchen || kitchen.status !== "ACTIVE") {
       return sendResponse(res, 400, "Kitchen not available");
     }
 
-    // Check cutoff time
-    const cutoffInfo = checkCutoff(mealWindow);
+    // Check cutoff time using kitchen's operating hours
+    const cutoffInfo = checkCutoffTime(mealWindow, kitchen);
 
     if (cutoffInfo.isPastCutoff) {
       return sendResponse(res, 200, "Voucher eligibility", {
@@ -703,15 +674,16 @@ export const adminRestoreVouchers = async (req, res) => {
 // 
 
 /**
- * Get cutoff times
+ * Get cutoff times (system defaults)
  *
  * GET /api/vouchers/cutoff-times
  */
 export const getCutoffTimes = async (req, res) => {
   try {
     const now = new Date();
-    const lunchCutoff = checkCutoff("LUNCH");
-    const dinnerCutoff = checkCutoff("DINNER");
+    const systemCutoffTimes = getSystemCutoffTimes();
+    const lunchCutoff = checkCutoffTime("LUNCH");
+    const dinnerCutoff = checkCutoffTime("DINNER");
 
     // Determine next available window
     let nextAvailableWindow;
@@ -725,15 +697,15 @@ export const getCutoffTimes = async (req, res) => {
 
     return sendResponse(res, 200, "Cutoff times", {
       lunch: {
-        cutoffTime: CUTOFF_CONFIG.LUNCH,
+        cutoffTime: systemCutoffTimes.LUNCH,
         currentlyOpen: !lunchCutoff.isPastCutoff,
-        closesAt: CUTOFF_CONFIG.LUNCH,
+        closesAt: systemCutoffTimes.LUNCH,
         timezone: "IST",
       },
       dinner: {
-        cutoffTime: CUTOFF_CONFIG.DINNER,
+        cutoffTime: systemCutoffTimes.DINNER,
         currentlyOpen: !dinnerCutoff.isPastCutoff,
-        closesAt: CUTOFF_CONFIG.DINNER,
+        closesAt: systemCutoffTimes.DINNER,
         timezone: "IST",
       },
       nextAvailableWindow,
@@ -746,7 +718,7 @@ export const getCutoffTimes = async (req, res) => {
 };
 
 /**
- * Update cutoff times (admin)
+ * Update cutoff times (admin) - updates system-wide defaults
  *
  * PUT /api/vouchers/cutoff-times
  */
@@ -754,14 +726,18 @@ export const updateCutoffTimes = async (req, res) => {
   try {
     const { lunch, dinner } = req.body;
 
-    const oldConfig = { ...CUTOFF_CONFIG };
+    const oldConfig = getSystemCutoffTimes();
+    const newConfig = { ...oldConfig };
 
     if (lunch?.cutoffTime) {
-      CUTOFF_CONFIG.LUNCH = lunch.cutoffTime;
+      newConfig.LUNCH = lunch.cutoffTime;
     }
     if (dinner?.cutoffTime) {
-      CUTOFF_CONFIG.DINNER = dinner.cutoffTime;
+      newConfig.DINNER = dinner.cutoffTime;
     }
+
+    // Persist to database and update cache
+    await updateConfig("cutoffTimes", newConfig, req.user._id);
 
     // Log audit entry
     safeAuditLog(req, {
@@ -769,15 +745,15 @@ export const updateCutoffTimes = async (req, res) => {
       entityType: "SYSTEM_CONFIG",
       entityId: null,
       oldValue: oldConfig,
-      newValue: CUTOFF_CONFIG,
+      newValue: newConfig,
       description: "Updated cutoff times configuration",
     });
 
-    console.log(`> Cutoff times updated: ${JSON.stringify(CUTOFF_CONFIG)}`);
+    console.log(`> Cutoff times updated: ${JSON.stringify(newConfig)}`);
 
     return sendResponse(res, 200, "Cutoff times updated", {
-      lunch: CUTOFF_CONFIG.LUNCH,
-      dinner: CUTOFF_CONFIG.DINNER,
+      lunch: newConfig.LUNCH,
+      dinner: newConfig.DINNER,
     });
   } catch (error) {
     console.log("> Update cutoff times error:", error);

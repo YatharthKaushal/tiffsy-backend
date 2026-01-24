@@ -99,10 +99,10 @@ const buildPayload = {
         channelId, // Included in data for client-side use
       },
       android: {
-        channelId, // React Native Firebase uses this for notification channel
         priority,
         ttl: 86400 * 1000, // 24 hours in ms
         notification: {
+          channelId, // channelId goes inside notification object
           sound: "default",
           priority: priority === "high" ? "high" : "default",
         },

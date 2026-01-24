@@ -135,43 +135,29 @@ function isSlotSkipped(subscription, date, mealWindow) {
 
 /**
  * Get default address for a subscription with zone resolution
- * Resolves zone from address pincode if not already set
+ * IMPORTANT: Only uses the user's explicitly marked default address (isDefault: true)
+ * No fallbacks - if no default address exists, auto-order fails with proper logging
  *
- * @param {Object} subscription - Subscription document
+ * @param {Object} subscription - Subscription document (unused, kept for API compatibility)
  * @param {ObjectId} userId - User ID
  * @returns {Promise<Object>} { address, zone, error }
  */
 async function getDefaultAddressWithZone(subscription, userId) {
-  let address = null;
-
-  // Use explicitly set default address
-  if (subscription.defaultAddressId) {
-    address = await CustomerAddress.findOne({
-      _id: subscription.defaultAddressId,
-      userId,
-      isDeleted: false,
-    });
-  }
-
-  // Fallback: Find default/primary address
-  if (!address) {
-    address = await CustomerAddress.findOne({
-      userId,
-      isDeleted: false,
-      isDefault: true,
-    });
-  }
-
-  // Last fallback: Any non-deleted address
-  if (!address) {
-    address = await CustomerAddress.findOne({
-      userId,
-      isDeleted: false,
-    });
-  }
+  // Only use the address marked as default by the user
+  // No fallbacks - user must have a default address set for auto-ordering
+  const address = await CustomerAddress.findOne({
+    userId,
+    isDeleted: false,
+    isDefault: true,
+  });
 
   if (!address) {
-    return { address: null, zone: null, error: "NO_ADDRESS" };
+    return {
+      address: null,
+      zone: null,
+      error: "NO_ADDRESS",
+      errorMessage: "No default address set. Please set a default address for auto-ordering.",
+    };
   }
 
   // Resolve zone from address
@@ -380,15 +366,16 @@ export async function processAutoOrder(
     } = await getDefaultAddressWithZone(subscription, userId);
 
     if (addressError === "NO_ADDRESS") {
+      const reason = addressErrorMessage || "No default address set for auto-ordering";
       await logAutoOrderResult({
         ...logParams,
         status: "FAILED",
-        reason: "No default address found",
+        reason,
         failureCategory: "NO_ADDRESS",
         processingTimeMs: Date.now() - startTime,
       });
       sendFailureNotification(userId, "NO_ADDRESS", mealWindow, context);
-      return { success: false, error: "No default address found" };
+      return { success: false, error: reason };
     }
 
     context.addressId = address._id;
@@ -434,7 +421,9 @@ export async function processAutoOrder(
     context.kitchenName = kitchen.name;
 
     // 6. Get menu item for the meal window
+    console.log(`> AutoOrder step 6: Getting menu item for kitchen ${kitchen._id} and ${mealWindow}`);
     const menuItem = await getMenuItemForMealWindow(kitchen._id, mealWindow);
+    console.log(`> AutoOrder step 6: menuItem = ${menuItem ? menuItem.name : 'null'}`);
 
     if (!menuItem) {
       await logAutoOrderResult({
@@ -468,14 +457,17 @@ export async function processAutoOrder(
     const autoOrderConfig = getAutoOrderConfig();
     const autoAccept = autoOrderConfig.autoAcceptOrders !== false;
 
-    // 9. Redeem voucher
+    // 9. Redeem voucher (skip cutoff check for auto-orders)
+    console.log(`> AutoOrder step 9: Calling redeemVouchersWithTransaction with skipCutoffCheck: true`);
     const voucherResult = await redeemVouchersWithTransaction(
       userId,
       1,
       mealWindow,
       null, // Will be updated after order creation
-      kitchen._id
+      kitchen._id,
+      { skipCutoffCheck: true } // Auto-orders bypass cutoff check
     );
+    console.log(`> AutoOrder step 9: voucherResult =`, JSON.stringify(voucherResult));
 
     if (!voucherResult.success) {
       await logAutoOrderResult({

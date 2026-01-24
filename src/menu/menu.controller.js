@@ -7,17 +7,12 @@ import { sendResponse } from "../../utils/response.utils.js";
 import { safeAuditLog } from "../../utils/audit.utils.js";
 import { sendToUserIds } from "../../services/notification.service.js";
 import { MENU_TEMPLATES, buildFromTemplate } from "../../services/notification-templates.service.js";
+import { checkCutoffTime } from "../../services/config.service.js";
 
 /**
  * Menu Controller
  * Handles menu item CRUD operations
  */
-
-// Cutoff times for meal windows (HH:MM format in IST)
-const CUTOFF_TIMES = {
-  LUNCH: "11:00",
-  DINNER: "21:00",
-};
 
 /**
  * Helper: Notify active subscribers about menu update
@@ -121,24 +116,6 @@ const checkMealWindowAvailability = async (
   };
 };
 
-/**
- * Helper: Check if current time is past cutoff for meal window
- * @param {String} mealWindow - LUNCH or DINNER
- * @returns {Object} { isPastCutoff: Boolean, cutoffTime: String }
- */
-const checkCutoffTime = (mealWindow) => {
-  const now = new Date();
-  const cutoffTime = CUTOFF_TIMES[mealWindow];
-  const [cutoffHour, cutoffMin] = cutoffTime.split(":").map(Number);
-
-  const cutoffDate = new Date();
-  cutoffDate.setHours(cutoffHour, cutoffMin, 0, 0);
-
-  return {
-    isPastCutoff: now >= cutoffDate,
-    cutoffTime,
-  };
-};
 
 /**
  * Create a new menu item
@@ -751,6 +728,9 @@ export const getMealMenuForWindow = async (req, res) => {
       return sendResponse(res, 400, "Invalid meal window");
     }
 
+    // Fetch kitchen with operating hours for cutoff time calculation
+    const kitchen = await Kitchen.findById(kitchenId).select("operatingHours");
+
     const menuItem = await MenuItem.findOne({
       kitchenId,
       menuType: "MEAL_MENU",
@@ -758,19 +738,21 @@ export const getMealMenuForWindow = async (req, res) => {
       status: "ACTIVE",
     }).populate("addonIds", "name price isAvailable");
 
+    // Get cutoff info using kitchen's operating hours
+    const { isPastCutoff, cutoffTime } = checkCutoffTime(
+      mealWindow.toUpperCase(),
+      kitchen
+    );
+
     if (!menuItem) {
       return sendResponse(res, 200, "No menu item for this meal window", {
         item: null,
         isAvailable: false,
         canUseVoucher: false,
-        cutoffTime: CUTOFF_TIMES[mealWindow.toUpperCase()],
-        isPastCutoff: false,
+        cutoffTime,
+        isPastCutoff,
       });
     }
-
-    const { isPastCutoff, cutoffTime } = checkCutoffTime(
-      mealWindow.toUpperCase()
-    );
 
     return sendResponse(res, 200, "Meal menu item", {
       item: menuItem,

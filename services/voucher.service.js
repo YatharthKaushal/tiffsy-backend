@@ -37,24 +37,32 @@ function groupVouchersBySubscription(vouchers) {
  * @param {string} mealWindow - LUNCH or DINNER
  * @param {ObjectId} orderId - Order ID for tracking
  * @param {ObjectId} kitchenId - Kitchen ID for tracking
+ * @param {Object} options - Additional options
+ * @param {boolean} options.skipCutoffCheck - Skip cutoff time validation (for auto-orders)
  * @returns {Promise<{success: boolean, vouchers: Array, error: string|null}>}
  */
-export async function redeemVouchersWithTransaction(userId, count, mealWindow, orderId, kitchenId) {
+export async function redeemVouchersWithTransaction(userId, count, mealWindow, orderId, kitchenId, options = {}) {
   if (count === 0) {
     return { success: true, vouchers: [], error: null };
   }
 
+  const { skipCutoffCheck = false } = options;
+  console.log(`> VoucherService: skipCutoffCheck=${skipCutoffCheck}, options=`, JSON.stringify(options));
+
   // Fetch kitchen to get accurate cutoff time from operating hours
   const kitchen = await Kitchen.findById(kitchenId);
 
-  // Check cutoff time before attempting redemption
-  const cutoffInfo = checkCutoffTime(mealWindow, kitchen);
-  if (cutoffInfo.isPastCutoff) {
-    return {
-      success: false,
-      vouchers: [],
-      error: cutoffInfo.message,
-    };
+  // Check cutoff time before attempting redemption (skip for auto-orders)
+  if (!skipCutoffCheck) {
+    console.log(`> VoucherService: Checking cutoff (skipCutoffCheck is false)`);
+    const cutoffInfo = checkCutoffTime(mealWindow, kitchen);
+    if (cutoffInfo.isPastCutoff) {
+      return {
+        success: false,
+        vouchers: [],
+        error: cutoffInfo.message,
+      };
+    }
   }
 
   const session = await mongoose.startSession();

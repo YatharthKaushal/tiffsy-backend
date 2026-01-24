@@ -6,8 +6,8 @@ import Zone from "../../schema/zone.schema.js";
 import { sendResponse } from "../../utils/response.utils.js";
 import { safeAuditCreate } from "../../utils/audit.utils.js";
 import { checkCutoffTime } from "../../services/config.service.js";
-import { sendToRole, sendToUserIds } from "../../services/notification.service.js";
-import { DRIVER_TEMPLATES, BATCH_REMINDER_TEMPLATES, buildFromTemplate } from "../../services/notification-templates.service.js";
+import { sendToRole, sendToUserIds, sendToUser } from "../../services/notification.service.js";
+import { DRIVER_TEMPLATES, BATCH_REMINDER_TEMPLATES, buildFromTemplate, getOrderStatusNotification } from "../../services/notification-templates.service.js";
 import User from "../../schema/user.schema.js";
 
 
@@ -759,6 +759,23 @@ export async function updateBatchPickup(req, res) {
       { $set: { status: "OUT_FOR_DELIVERY", pickedUpAt: now } }
     );
 
+    // Send notifications to all customers in this batch
+    const orders = await Order.find({ _id: { $in: batch.orderIds } }).select("userId orderNumber");
+    for (const order of orders) {
+      const notification = getOrderStatusNotification("OUT_FOR_DELIVERY", order);
+      if (notification) {
+        sendToUser(order.userId, "ORDER_OUT_FOR_DELIVERY", notification.title, notification.body, {
+          data: {
+            orderId: order._id.toString(),
+            orderNumber: order.orderNumber,
+            status: "OUT_FOR_DELIVERY",
+          },
+          entityType: "ORDER",
+          entityId: order._id,
+        });
+      }
+    }
+
     return sendResponse(res, 200, true, "Batch picked up, driver out for delivery", { batch });
   } catch (error) {
     console.log("Update batch pickup error:", error);
@@ -829,19 +846,42 @@ export async function updateDeliveryStatus(req, res) {
     }
 
     // Update order status - map delivery assignment statuses to order statuses
+    let notificationStatus = null; // Track the status to notify customer about
+
     if (status === "PICKED_UP") {
       await order.updateStatus("PICKED_UP", driverId, notes || "Picked up by driver");
       await order.updateStatus("OUT_FOR_DELIVERY", driverId, "Driver left for delivery");
       await assignment.updateStatus("OUT_FOR_DELIVERY");
+      notificationStatus = "OUT_FOR_DELIVERY";
     } else if (status === "EN_ROUTE") {
       // Map EN_ROUTE (DeliveryAssignment) to OUT_FOR_DELIVERY (Order)
       await order.updateStatus("OUT_FOR_DELIVERY", driverId, notes || "Driver en route to delivery location");
+      notificationStatus = "OUT_FOR_DELIVERY";
     } else if (status === "ARRIVED") {
       // Map ARRIVED (DeliveryAssignment) to OUT_FOR_DELIVERY (Order) - order stays out for delivery until actually delivered
       await order.updateStatus("OUT_FOR_DELIVERY", driverId, notes || "Driver arrived at delivery location");
+      // No notification for ARRIVED - customer already knows it's out for delivery
     } else {
       // For other statuses (DELIVERED, FAILED, CANCELLED), use the same status
       await order.updateStatus(status, driverId, notes);
+      notificationStatus = status;
+    }
+
+    // Send notification to customer about delivery status change
+    if (notificationStatus) {
+      const notification = getOrderStatusNotification(notificationStatus, order, notes);
+      if (notification) {
+        const notificationType = `ORDER_${notificationStatus}`;
+        sendToUser(order.userId, notificationType, notification.title, notification.body, {
+          data: {
+            orderId: order._id.toString(),
+            orderNumber: order.orderNumber,
+            status: notificationStatus,
+          },
+          entityType: "ORDER",
+          entityId: order._id,
+        });
+      }
     }
 
     // Update batch counters

@@ -245,56 +245,34 @@ function calculateOrderPricing(items, voucherCount, couponDiscount, menuType) {
   // Get fees from config service
   const fees = getFeesConfig();
 
-  // Calculate totals per item, grouping main courses with their add-ons
-  // Each main course item (with its add-ons) can be covered by 1 voucher
-  let mainCourseItems = []; // Array of { basePrice, addonsTotal, totalPrice }
-  let nonMainCourseTotal = 0;
+  // Separate main courses and add-ons
+  // IMPORTANT: Voucher covers ONLY base meal price, NOT add-ons
+  // Add-ons are ALWAYS paid by customer
+  let mainCoursesTotal = 0;
+  let mainCoursesCount = 0;
+  let addonsTotal = 0;
 
   for (const item of items) {
-    const itemAddonsTotal = item.addons.reduce((sum, a) => sum + a.totalPrice, 0);
-
     if (item.isMainCourse) {
-      // For main courses, store each unit separately (for quantity > 1)
-      for (let i = 0; i < item.quantity; i++) {
-        const unitBasePrice = item.unitPrice;
-        const unitAddonsTotal = itemAddonsTotal / item.quantity; // Distribute add-ons evenly
-        mainCourseItems.push({
-          basePrice: unitBasePrice,
-          addonsTotal: unitAddonsTotal,
-          totalPrice: unitBasePrice + unitAddonsTotal,
-        });
-      }
-    } else {
-      // Non-main course items (sides, drinks, etc.)
-      nonMainCourseTotal += item.totalPrice + itemAddonsTotal;
+      mainCoursesCount += item.quantity;
+      mainCoursesTotal += item.totalPrice;
     }
+    // Sum all add-ons (always paid by customer, never covered by voucher)
+    const itemAddonsTotal = item.addons.reduce((sum, a) => sum + a.totalPrice, 0);
+    addonsTotal += itemAddonsTotal;
   }
 
-  const mainCoursesCount = mainCourseItems.length;
-  const mainCoursesTotal = mainCourseItems.reduce((sum, m) => sum + m.basePrice, 0);
-  const mainCourseAddonsTotal = mainCourseItems.reduce((sum, m) => sum + m.addonsTotal, 0);
-  const subtotal = mainCoursesTotal + mainCourseAddonsTotal + nonMainCourseTotal;
+  const subtotal = mainCoursesTotal + addonsTotal;
 
   // Check if vouchers are being used
   const hasVouchers = menuType === "MEAL_MENU" && voucherCount > 0;
   const mainCoursesCovered = hasVouchers ? Math.min(voucherCount, mainCoursesCount) : 0;
   const uncoveredMainCourses = mainCoursesCount - mainCoursesCovered;
+  const avgMainCoursePrice = mainCoursesCount > 0 ? mainCoursesTotal / mainCoursesCount : 0;
 
-  // Calculate what vouchers cover (complete meals = base price + add-ons)
-  // Take the first N main course items as covered by vouchers
-  let voucherCoverageValue = 0;
-  let coveredMealsTotal = 0;
-  let uncoveredMealsTotal = 0;
-
-  for (let i = 0; i < mainCourseItems.length; i++) {
-    if (i < mainCoursesCovered) {
-      // This meal is covered by voucher (base + add-ons)
-      coveredMealsTotal += mainCourseItems[i].totalPrice;
-    } else {
-      // This meal is NOT covered
-      uncoveredMealsTotal += mainCourseItems[i].totalPrice;
-    }
-  }
+  // Calculate value of covered and uncovered main courses
+  const coveredMainCourseValue = mainCoursesCovered * avgMainCoursePrice;
+  const uncoveredMainCourseValue = uncoveredMainCourses * avgMainCoursePrice;
 
   // CHARGES CALCULATION
   // When vouchers are used: ALL charges are WAIVED (₹0)
@@ -309,19 +287,19 @@ function calculateOrderPricing(items, voucherCount, couponDiscount, menuType) {
   };
 
   // TAX CALCULATION
-  // When vouchers are used: tax only on uncovered items (if any)
+  // When vouchers are used: tax only on add-ons + uncovered main courses
   // When no vouchers: full tax on subtotal + service + packaging
   let taxableAmount = 0;
   if (hasVouchers) {
-    // Tax only on uncovered items (meals not covered by voucher + non-main-course items)
-    taxableAmount = uncoveredMealsTotal + nonMainCourseTotal;
+    // Tax only on: add-ons (always paid by customer) + uncovered main courses
+    taxableAmount = addonsTotal + uncoveredMainCourseValue;
   } else {
     // Full tax on everything (excluding delivery)
     taxableAmount = subtotal + charges.serviceFee + charges.packagingFee;
   }
 
   charges.taxAmount = Math.round(taxableAmount * fees.taxRate * 100) / 100;
-  if (charges.taxAmount > 0) {
+  if (charges.taxAmount > 0 || !hasVouchers) {
     charges.taxBreakdown.push({
       taxType: "GST",
       rate: fees.taxRate * 100,
@@ -330,11 +308,9 @@ function calculateOrderPricing(items, voucherCount, couponDiscount, menuType) {
   }
 
   // VOUCHER COVERAGE VALUE
-  // Voucher covers: complete meal (base + add-ons) for each covered main course
-  // Plus all charges (delivery, service, packaging, handling) are waived
-  if (hasVouchers) {
-    voucherCoverageValue = coveredMealsTotal;
-  }
+  // Voucher covers ONLY: base main course price (NOT add-ons)
+  // All charges (delivery, service, packaging, handling) are waived separately
+  const voucherCoverageValue = hasVouchers ? coveredMainCourseValue : 0;
 
   // Calculate coupon discount (ON_DEMAND_MENU only)
   let discountAmount = 0;
@@ -356,12 +332,13 @@ function calculateOrderPricing(items, voucherCount, couponDiscount, menuType) {
   const grandTotal = subtotal + totalCharges - discountAmount;
 
   // AMOUNT TO PAY
-  // When vouchers are used: customer pays for uncovered items + their tax + non-main-course items
+  // When vouchers are used: customer pays for ADD-ONS + uncovered main courses + tax on both
   // When no vouchers: customer pays full grandTotal
   let amountToPay;
   if (hasVouchers) {
-    // Pay for: uncovered meals + non-main-course items + tax on those
-    amountToPay = uncoveredMealsTotal + nonMainCourseTotal + charges.taxAmount;
+    // Customer pays for: add-ons + uncovered main courses + tax on those
+    // Note: all charges are already 0 when voucher is used
+    amountToPay = addonsTotal + uncoveredMainCourseValue + charges.taxAmount;
   } else {
     amountToPay = grandTotal;
   }
@@ -372,7 +349,7 @@ function calculateOrderPricing(items, voucherCount, couponDiscount, menuType) {
   return {
     subtotal,
     mainCoursesTotal,
-    addonsTotal: mainCourseAddonsTotal + (nonMainCourseTotal > 0 ? 0 : 0), // For backward compatibility
+    addonsTotal,
     charges,
     discount: couponDiscount
       ? {
@@ -389,8 +366,9 @@ function calculateOrderPricing(items, voucherCount, couponDiscount, menuType) {
       coversDelivery: hasVouchers,
       coversServiceFee: hasVouchers,
       coversPackagingFee: hasVouchers,
-      coversTax: hasVouchers,
-      coversAddons: hasVouchers, // NEW: voucher covers add-ons too
+      coversHandlingFee: hasVouchers,
+      coversTaxOnCoveredMeals: hasVouchers,
+      coversAddons: false, // Voucher does NOT cover add-ons - customer always pays
     },
     grandTotal,
     amountToPay,

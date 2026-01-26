@@ -42,6 +42,34 @@ Complete documentation for driver profile and vehicle management features.
 
 ---
 
+### 🎟️ Consumer App - Voucher Expiry
+
+#### Voucher Expiry Implementation Guide
+Complete documentation for implementing voucher expiry features in the consumer mobile app.
+
+**Files:**
+1. **[FRONTEND_TEAM_PROMPT.md](FRONTEND_TEAM_PROMPT.md)** ⭐ START HERE
+   - Quick start implementation prompt
+   - Priority features and timeline
+   - Essential requirements
+   - Testing checklist
+   - Week-by-week implementation plan
+
+2. **[CONSUMER_APP_VOUCHER_EXPIRY_GUIDE.md](CONSUMER_APP_VOUCHER_EXPIRY_GUIDE.md)**
+   - Comprehensive implementation guide
+   - Complete API specifications
+   - Full UI/UX requirements
+   - React Native code examples
+   - 10 detailed test cases
+   - Troubleshooting and FAQ
+
+**Backend Documentation:**
+- **[Production Deployment Guide](../PRODUCTION_DEPLOYMENT.md)** - Backend setup
+- **[Deployment Status](../DEPLOYMENT_STATUS.md)** - Current status (20/21 checks passed)
+- **[Command Reference](../COMMAND_REFERENCE.md)** - Quick command reference
+
+---
+
 ## Getting Started
 
 ### For Frontend Developers
@@ -61,6 +89,25 @@ Complete documentation for driver profile and vehicle management features.
 3. **Keep the quick reference handy:**
    ```
    docs/QUICK_REFERENCE.md
+   ```
+
+**To integrate Consumer App Voucher Expiry:**
+
+1. **Start with the prompt:**
+   ```
+   docs/FRONTEND_TEAM_PROMPT.md
+   ```
+
+2. **Read the comprehensive guide:**
+   ```
+   docs/CONSUMER_APP_VOUCHER_EXPIRY_GUIDE.md
+   ```
+
+3. **Backend team references:**
+   ```
+   PRODUCTION_DEPLOYMENT.md
+   DEPLOYMENT_STATUS.md
+   COMMAND_REFERENCE.md
    ```
 
 ### For AI-Assisted Development
@@ -126,13 +173,46 @@ For developers who need to understand the backend implementation:
 - Validation: `src/driver/driver.validation.js`
 - Schema: `schema/user.schema.js`
 
-**Voucher Fix (Latest):**
-- Controller: `src/order/order.controller.js` (line 676-706)
-- Fixed voucher eligibility calculation bug
+**Voucher System:**
+- Pricing Logic: `src/order/order.controller.js` (line 244-400)
+- Eligibility Check: `src/order/order.controller.js` (line 676-706)
+- Expiry Cron: `scripts/voucher-expiry-cron.js`
+- Cron Scheduler: `cron/scheduler.js`
+- Admin Controller: `src/admin/cron.controller.js`
+- Schema: `schema/voucher.schema.js`
 
 ---
 
 ## Recent Updates
+
+### 2026-01-26 ⭐ NEW
+- ✅ **Implemented Production Voucher Expiry System**
+  - Automated cron job running daily at 8:00 AM IST
+  - Auto-initializes on server startup with node-cron
+  - Admin API endpoints for manual triggers and monitoring
+  - PM2 process management configuration
+  - Graceful shutdown handlers
+  - Comprehensive testing suite (9 tests, all passing)
+  - See `cron/scheduler.js` and `scripts/voucher-expiry-cron.js`
+
+- ✅ **Created Complete Consumer App Documentation**
+  - Frontend team implementation prompt
+  - Comprehensive voucher expiry guide
+  - React Native code examples
+  - 10 detailed test cases
+  - UI/UX specifications
+  - Error handling patterns
+
+- ✅ **Fixed Critical Voucher Pricing Bug**
+  - Voucher now covers ONLY base meal price (not add-ons)
+  - Add-ons always paid by customer
+  - All charges waived when voucher applied
+  - See `src/order/order.controller.js:244-400`
+
+- ✅ **Fixed OTP Verification Bug**
+  - OTP now verified BEFORE marking delivery as delivered
+  - Wrong OTP properly rejected with error message
+  - See `src/delivery/delivery.controller.js:824-875`
 
 ### 2026-01-15
 - ✅ **Fixed voucher eligibility bug** in `/api/orders/calculate-pricing`
@@ -197,6 +277,10 @@ When adding new documentation:
 
 | Date | Change | Files |
 |------|--------|-------|
+| 2026-01-26 | Production voucher expiry system implemented | cron/scheduler.js, scripts/voucher-expiry-cron.js |
+| 2026-01-26 | Consumer app voucher expiry documentation created | FRONTEND_TEAM_PROMPT.md, CONSUMER_APP_VOUCHER_EXPIRY_GUIDE.md |
+| 2026-01-26 | Fixed voucher pricing (base meal only) | order.controller.js (244-400) |
+| 2026-01-26 | Fixed OTP verification bug | delivery.controller.js (824-875) |
 | 2026-01-15 | Initial documentation created | All docs |
 | 2026-01-15 | Fixed voucher eligibility bug | order.controller.js |
 
@@ -210,14 +294,29 @@ When adding new documentation:
 ### I want to manage driver profile
 → Read: `DRIVER_PROFILE_API.md`
 
+### I need to implement voucher expiry in consumer app
+→ Read: `FRONTEND_TEAM_PROMPT.md` ⭐ START HERE
+
+### I need detailed voucher expiry implementation guide
+→ Read: `CONSUMER_APP_VOUCHER_EXPIRY_GUIDE.md`
+
+### I want to deploy voucher expiry to production
+→ Read: `../PRODUCTION_DEPLOYMENT.md`
+
+### I need quick command reference
+→ Read: `../COMMAND_REFERENCE.md`
+
+### I want to test voucher expiry system
+→ Read: `../scripts/QUICK_START.md`
+
 ### I need a quick reference
 → Read: `QUICK_REFERENCE.md`
 
 ### I'm using Claude to build the frontend
-→ Share: `CLAUDE_INTEGRATION_PROMPT.md`
+→ Share: `CLAUDE_INTEGRATION_PROMPT.md` or `FRONTEND_TEAM_PROMPT.md`
 
 ### I need to understand the backend code
-→ Check: `src/order/order.controller.js` or `src/driver/driver.controller.js`
+→ Check: `src/order/order.controller.js` or `src/driver/driver.controller.js` or `cron/scheduler.js`
 
 ---
 

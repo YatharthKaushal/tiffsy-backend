@@ -612,6 +612,23 @@ export async function acceptBatch(req, res) {
       "name address"
     );
 
+    // Send notification to driver confirming batch assignment
+    const { title: driverTitle, body: driverBody } = buildFromTemplate(DRIVER_TEMPLATES.BATCH_ASSIGNED, {
+      batchNumber: batch.batchNumber,
+      orderCount: orders.length,
+      kitchenName: kitchen?.name || "Kitchen",
+    });
+    sendToUser(driverId, "BATCH_ASSIGNED", driverTitle, driverBody, {
+      data: {
+        batchId: batch._id.toString(),
+        batchNumber: batch.batchNumber,
+        orderCount: orders.length.toString(),
+        kitchenId: batch.kitchenId.toString(),
+      },
+      entityType: "BATCH",
+      entityId: batch._id,
+    });
+
     // Send notification to all customers that driver is on the way
     for (const order of orders) {
       sendToUser(order.userId, "ORDER_OUT_FOR_DELIVERY", "Driver On The Way!", `Your order #${order.orderNumber} has been picked up by a delivery partner and is on the way!`, {

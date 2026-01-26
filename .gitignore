@@ -16,3 +16,7 @@ docs/api.zip
 
 # Scripts (if contains sensitive data)
 # scripts
+
+# Logs
+logs/*.log
+*.log

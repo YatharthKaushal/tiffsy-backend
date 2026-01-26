@@ -17,6 +17,7 @@ import couponRoutes from "./src/coupon/coupon.routes.js";
 import orderRoutes from "./src/order/order.routes.js";
 import deliveryRoutes from "./src/delivery/delivery.routes.js";
 import adminRoutes from "./src/admin/admin.routes.js";
+import cronRoutes from "./src/admin/cron.routes.js";
 import refundRoutes from "./src/refund/refund.routes.js";
 import paymentRoutes from "./src/payment/payment.routes.js";
 import notificationRoutes from "./src/notification/notification.routes.js";
@@ -120,6 +121,12 @@ router.use("/delivery", deliveryRoutes);
  * @desc Admin dashboard and management routes
  */
 router.use("/admin", adminRoutes);
+
+/**
+ * @route /api/admin/cron
+ * @desc Admin cron job management routes
+ */
+router.use("/admin/cron", cronRoutes);
 
 /**
  * @route /api/refunds

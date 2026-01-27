@@ -1516,6 +1516,50 @@ export async function reassignBatch(req, res) {
       performedAt: new Date(),
     });
 
+    // Get kitchen info for notifications
+    const kitchen = await Kitchen.findById(batch.kitchenId).select("name");
+
+    // Notify previous driver that batch was reassigned
+    if (previousDriver) {
+      sendToUser(
+        previousDriver,
+        "BATCH_CANCELLED",
+        "Batch Reassigned",
+        `Batch #${batch.batchNumber} has been reassigned to another driver`,
+        {
+          data: {
+            batchId: batch._id.toString(),
+            batchNumber: batch.batchNumber,
+            reason: "Reassigned to another driver",
+          },
+          entityType: "BATCH",
+          entityId: batch._id,
+        }
+      );
+
+      console.log(`Notification sent to previous driver ${previousDriver} for reassigned batch ${batch.batchNumber}`);
+    }
+
+    // Notify new driver of batch assignment
+    const { title, body } = buildFromTemplate(DRIVER_TEMPLATES.BATCH_ASSIGNED, {
+      batchNumber: batch.batchNumber,
+      orderCount: batch.orderIds.length,
+      kitchenName: kitchen?.name || "Kitchen",
+    });
+
+    sendToUser(driverId, "BATCH_ASSIGNED", title, body, {
+      data: {
+        batchId: batch._id.toString(),
+        batchNumber: batch.batchNumber,
+        orderCount: batch.orderIds.length.toString(),
+        kitchenId: batch.kitchenId.toString(),
+      },
+      entityType: "BATCH",
+      entityId: batch._id,
+    });
+
+    console.log(`Notification sent to new driver ${driverId} for assigned batch ${batch.batchNumber}`);
+
     return sendResponse(res, 200, true, "Batch reassigned", { batch });
   } catch (error) {
     console.log("Reassign batch error:", error);
@@ -1575,6 +1619,26 @@ export async function cancelBatch(req, res) {
       reason: `Cancelled batch. Orders affected: ${batch.orderIds.length}. ${reason}`,
       performedAt: new Date(),
     });
+
+    // Send notification to driver if batch was assigned
+    if (batch.driverId) {
+      const { title, body } = buildFromTemplate(DRIVER_TEMPLATES.BATCH_CANCELLED, {
+        batchNumber: batch.batchNumber,
+        reason: reason ? ` Reason: ${reason}` : "",
+      });
+
+      sendToUser(batch.driverId, "BATCH_CANCELLED", title, body, {
+        data: {
+          batchId: batch._id.toString(),
+          batchNumber: batch.batchNumber,
+          reason: reason || "Cancelled by admin",
+        },
+        entityType: "BATCH",
+        entityId: batch._id,
+      });
+
+      console.log(`Notification sent to driver ${batch.driverId} for cancelled batch ${batch.batchNumber}`);
+    }
 
     return sendResponse(res, 200, true, "Batch cancelled", {
       batch,

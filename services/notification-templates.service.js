@@ -60,6 +60,14 @@ export const DRIVER_TEMPLATES = {
     title: "Batch Assigned",
     body: "You have been assigned a batch with {orderCount} orders from {kitchenName}",
   },
+  BATCH_CANCELLED: {
+    title: "Batch Cancelled",
+    body: "Batch #{batchNumber} has been cancelled.{reason}",
+  },
+  BATCH_UPDATED: {
+    title: "Batch Updated",
+    body: "Batch #{batchNumber} has been updated. Please review changes.",
+  },
   ORDER_READY_FOR_PICKUP: {
     title: "Orders Ready!",
     body: "{orderCount} order(s) ready for pickup at {kitchenName}",

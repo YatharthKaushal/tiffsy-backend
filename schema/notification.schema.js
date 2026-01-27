@@ -48,6 +48,8 @@ const notificationSchema = new mongoose.Schema(
           // Driver notifications
           "BATCH_READY",
           "BATCH_ASSIGNED",
+          "BATCH_CANCELLED",
+          "BATCH_UPDATED",
           "DELIVERY_ASSIGNED",
           "ORDER_READY_FOR_PICKUP",
 

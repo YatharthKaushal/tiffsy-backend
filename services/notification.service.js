@@ -241,14 +241,26 @@ async function removeInvalidTokens(userId, tokens) {
 async function _sendToUserAsync(userId, type, title, body, options = {}) {
   const { data = {}, entityType, entityId, saveToDb = true, expiryNotificationKey } = options;
 
+  console.log("=== NOTIFICATION SEND ATTEMPT ===");
+  console.log("Target User ID:", userId);
+  console.log("Notification Type:", type);
+  console.log("Title:", title);
+  console.log("Body:", body);
+  console.log("Data Payload:", JSON.stringify(data, null, 2));
+  console.log("Entity:", { entityType, entityId });
+
   try {
     // Get user's FCM tokens
-    const user = await User.findById(userId).select("fcmTokens").lean();
+    const user = await User.findById(userId).select("fcmTokens role name phone").lean();
+
+    console.log("User Found:", user ? { id: userId, role: user.role, name: user.name, phone: user.phone, tokenCount: user.fcmTokens?.length || 0 } : "NOT FOUND");
 
     if (!user?.fcmTokens?.length) {
-      console.log("> No FCM tokens for user:", { userId });
+      console.log("NOTIFICATION FAILED: No FCM tokens for user:", { userId, role: user?.role, phone: user?.phone });
       return { sent: false, reason: "no_tokens" };
     }
+
+    console.log("FCM Tokens Found:", user.fcmTokens.map(t => ({ deviceType: t.deviceType, tokenPreview: t.token.substring(0, 20) + "..." })));
 
     // Create notification record if saving to DB
     let notification = null;
@@ -320,20 +332,25 @@ async function _sendToUserAsync(userId, type, title, body, options = {}) {
     }
 
     const successCount = results.filter((r) => r.success).length;
-    console.log("> Notification sent:", {
-      userId,
-      type,
-      successCount,
-      totalTokens: results.length,
-    });
+    const failedCount = results.filter((r) => !r.success).length;
+
+    console.log("=== NOTIFICATION SEND RESULT ===");
+    console.log("Success:", successCount, "Failed:", failedCount, "Total Tokens:", results.length);
+    console.log("Delivery Results:", results.map(r => ({
+      deviceType: r.deviceType,
+      success: r.success,
+      error: r.errorCode || null
+    })));
+    console.log("================================\n");
 
     return { sent: true, successCount, totalTokens: results.length };
   } catch (error) {
-    console.log("> Failed to send notification:", {
-      userId,
-      type,
-      error: error.message,
-    });
+    console.log("=== NOTIFICATION SEND ERROR ===");
+    console.log("User ID:", userId);
+    console.log("Type:", type);
+    console.log("Error:", error.message);
+    console.log("Stack:", error.stack);
+    console.log("===============================\n");
     throw error;
   }
 }
@@ -391,6 +408,13 @@ export function sendToUsers(userIds, type, title, body, options = {}) {
 export async function sendToRole(role, type, title, body, options = {}) {
   const { kitchenId, ...restOptions } = options;
 
+  console.log("\n=== SEND TO ROLE START ===");
+  console.log("Target Role:", role);
+  console.log("Kitchen ID Filter:", kitchenId || "NONE");
+  console.log("Notification Type:", type);
+  console.log("Title:", title);
+  console.log("Body:", body);
+
   try {
     // Build query for finding users
     const query = {
@@ -409,10 +433,32 @@ export async function sendToRole(role, type, title, body, options = {}) {
       query.approvalStatus = "APPROVED";
     }
 
-    const users = await User.find(query).select("_id").lean();
+    console.log("Database Query:", JSON.stringify(query, null, 2));
+
+    const users = await User.find(query).select("_id name phone").lean();
     const userIds = users.map((u) => u._id);
 
-    console.log("> Sending to role:", { role, userCount: userIds.length, type, kitchenId });
+    console.log("Users Found:", users.length);
+    if (users.length > 0) {
+      console.log("User Details:", users.map(u => ({ id: u._id, name: u.name, phone: u.phone })));
+    } else {
+      console.log("WARNING: No users found matching criteria!");
+      console.log("Checking all users with this role...");
+      const allRoleUsers = await User.find({ role }).select("_id name phone status fcmTokens approvalStatus kitchenId").lean();
+      console.log("All users with role", role, ":", allRoleUsers.map(u => ({
+        id: u._id,
+        name: u.name,
+        phone: u.phone,
+        status: u.status,
+        hasTokens: (u.fcmTokens?.length || 0) > 0,
+        tokenCount: u.fcmTokens?.length || 0,
+        approvalStatus: u.approvalStatus,
+        kitchenId: u.kitchenId
+      })));
+    }
+
+    console.log("Sending to", userIds.length, "user(s)");
+    console.log("=========================\n");
 
     if (userIds.length > 0) {
       sendToUsers(userIds, type, title, body, restOptions);
@@ -420,7 +466,11 @@ export async function sendToRole(role, type, title, body, options = {}) {
 
     return { queued: userIds.length };
   } catch (error) {
-    console.log("> FCM sendToRole error:", { role, error: error.message });
+    console.log("=== SEND TO ROLE ERROR ===");
+    console.log("Role:", role);
+    console.log("Error:", error.message);
+    console.log("Stack:", error.stack);
+    console.log("==========================\n");
     return { queued: 0, error: error.message };
   }
 }

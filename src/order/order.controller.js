@@ -1422,6 +1422,22 @@ export async function acceptOrder(req, res) {
       );
     }
 
+    // Option C: Validate payment before accepting (prevent accepting unpaid orders)
+    // Only check payment for orders that require payment (amountPaid > 0)
+    if (order.amountPaid > 0 && order.paymentStatus !== "PAID") {
+      log.warn("acceptOrder", "Cannot accept unpaid order", {
+        orderId: id,
+        amountPaid: order.amountPaid,
+        paymentStatus: order.paymentStatus,
+      });
+      return sendResponse(
+        res,
+        400,
+        false,
+        `Cannot accept order with pending payment. Payment status: ${order.paymentStatus}`
+      );
+    }
+
     // Set ACCEPTED status first
     await order.updateStatus("ACCEPTED", staffId, "Order accepted by kitchen");
 

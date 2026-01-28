@@ -11,9 +11,58 @@ import Kitchen from "../schema/kitchen.schema.js";
 import razorpayProvider from "./razorpay.provider.js";
 import { getRazorpayKeyId } from "../config/razorpay.config.js";
 import { isWithinMealWindowOperatingHours } from "./config.service.js";
+import { restoreVouchersForOrder } from "./voucher.service.js";
 
 // Razorpay orders expire after this duration (30 minutes)
 const ORDER_EXPIRY_MINUTES = 30;
+
+/**
+ * Handle order payment failure - updates order status and restores vouchers
+ * @param {string} orderId - Order ID
+ * @param {string} failureReason - Reason for payment failure
+ */
+async function handleOrderPaymentFailure(orderId, failureReason) {
+  console.log("[PAYMENT SERVICE] Handling order payment failure:", orderId);
+
+  // Find and update the order
+  const order = await Order.findByIdAndUpdate(
+    orderId,
+    {
+      paymentStatus: "FAILED",
+      status: "FAILED",
+      $push: {
+        statusTimeline: {
+          status: "FAILED",
+          timestamp: new Date(),
+          notes: failureReason,
+        },
+      },
+    },
+    { new: true }
+  );
+
+  if (!order) {
+    console.log("[PAYMENT SERVICE] WARNING: Order not found for failure update:", orderId);
+    return;
+  }
+
+  console.log("[PAYMENT SERVICE] Order marked as FAILED:", order.orderNumber);
+
+  // Restore vouchers if any were used
+  if (order.voucherUsage?.voucherIds?.length > 0) {
+    try {
+      console.log("[PAYMENT SERVICE] Restoring vouchers for failed payment order");
+      const restoreResult = await restoreVouchersForOrder(
+        order.voucherUsage.voucherIds,
+        `Payment failed: ${failureReason}`
+      );
+      console.log("[PAYMENT SERVICE] Vouchers restored:", restoreResult.count);
+    } catch (voucherError) {
+      console.log("[PAYMENT SERVICE] ERROR restoring vouchers:", voucherError.message);
+      // Don't throw - order failure is already handled
+    }
+  }
+}
 
 /**
  * Create a payment order in Razorpay
@@ -164,6 +213,15 @@ export async function verifyPayment({ razorpayOrderId, razorpayPaymentId, razorp
   if (!isValid) {
     console.log("[PAYMENT SERVICE] ERROR: Signature verification FAILED");
     await transaction.markFailed("Signature verification failed", "INVALID_SIGNATURE", null);
+
+    // Mark the order as FAILED and restore vouchers
+    if (transaction.purchaseType === "ORDER") {
+      await handleOrderPaymentFailure(
+        transaction.referenceId,
+        "Payment signature verification failed"
+      );
+    }
+
     throw new Error("Payment signature verification failed");
   }
 
@@ -183,6 +241,15 @@ export async function verifyPayment({ razorpayOrderId, razorpayPaymentId, razorp
       payment.errorCode,
       payment
     );
+
+    // Mark the order as FAILED and restore vouchers
+    if (transaction.purchaseType === "ORDER") {
+      await handleOrderPaymentFailure(
+        transaction.referenceId,
+        `Payment failed with status: ${payment.status}`
+      );
+    }
+
     throw new Error(`Payment not successful. Status: ${payment.status}`);
   }
 
@@ -524,11 +591,12 @@ async function handlePaymentFailed(payment) {
       payment
     );
 
-    // Update order status if applicable
+    // Mark the order as FAILED and restore vouchers
     if (transaction.purchaseType === "ORDER") {
-      await Order.findByIdAndUpdate(transaction.referenceId, {
-        paymentStatus: "FAILED",
-      });
+      await handleOrderPaymentFailure(
+        transaction.referenceId,
+        `Payment failed via webhook: ${payment.error_description || "Unknown error"}`
+      );
     }
   }
 
